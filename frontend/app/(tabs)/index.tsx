@@ -12,6 +12,7 @@ import { makeStyles, colors as themeColors } from "@/src/theme";
 import { useAuth } from "@/src/auth";
 import { useProgram, MEAL_ORDER, MEAL_LABELS, MEAL_TIMES } from "@/src/program-store";
 import { MealCard } from "@/src/components/MealCard";
+import { HydrationCard } from "@/src/components/HydrationCard";
 
 const useStyles = makeStyles((colors) => ({
   root: { flex: 1, backgroundColor: colors.surface },
@@ -43,8 +44,8 @@ const useStyles = makeStyles((colors) => ({
   emptyText: { color: colors.muted, fontSize: 13, marginTop: 8, textAlign: "center", lineHeight: 20 },
   emptyBtn: { marginTop: 20, backgroundColor: colors.brandPrimary, paddingHorizontal: 24, paddingVertical: 14, borderRadius: 999 },
   emptyBtnText: { color: colors.onBrandPrimary, fontWeight: "600", fontSize: 14, letterSpacing: 0.3 },
-  quickRow: { flexDirection: "row", paddingHorizontal: 24, gap: 10, marginBottom: 16 },
-  quick: { flex: 1, padding: 14, borderRadius: 16, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, gap: 8 },
+  quickRow: { paddingHorizontal: 24, gap: 10, paddingBottom: 16 },
+  quick: { width: 150, padding: 14, borderRadius: 16, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, gap: 8 },
   quickLabel: { color: colors.onSurface, fontSize: 13, fontWeight: "600" },
   quickHint: { color: colors.muted, fontSize: 11 },
   reminder: { marginHorizontal: 24, marginBottom: 16, borderRadius: 18, padding: 16, backgroundColor: colors.brandPrimary, flexDirection: "row", alignItems: "center", gap: 14, shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 5 },
@@ -194,18 +195,30 @@ export default function Home() {
               </Animated.View>
             )}
 
-            <View style={styles.quickRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickRow}>
               <Pressable testID="home-go-shopping" onPress={() => router.push("/(tabs)/shopping")} style={styles.quick}>
                 <LucideIcon name="shopping-basket" size={18} color={themeColors.warning} />
                 <Text style={styles.quickLabel}>Mes courses</Text>
                 <Text style={styles.quickHint}>Liste générée depuis vos menus</Text>
+              </Pressable>
+              <Pressable testID="home-go-favorites" onPress={() => router.push("/favorites")} style={styles.quick}>
+                <LucideIcon name="heart" size={18} color={themeColors.warning} />
+                <Text style={styles.quickLabel}>Mes favoris</Text>
+                <Text style={styles.quickHint}>Recettes coup de cœur à refaire</Text>
+              </Pressable>
+              <Pressable testID="home-go-photos" onPress={() => router.push("/photos")} style={styles.quick}>
+                <LucideIcon name="camera" size={18} color={themeColors.warning} />
+                <Text style={styles.quickLabel}>Mes photos</Text>
+                <Text style={styles.quickHint}>Vos assiettes, semaine par semaine</Text>
               </Pressable>
               <Pressable testID="home-go-inventory" onPress={() => router.push("/(tabs)/inventory")} style={styles.quick}>
                 <LucideIcon name="refrigerator" size={18} color={themeColors.warning} />
                 <Text style={styles.quickLabel}>Ma maison</Text>
                 <Text style={styles.quickHint}>Ce que j’ai déjà chez moi</Text>
               </Pressable>
-            </View>
+            </ScrollView>
+
+            <HydrationCard />
 
             {active.map((m, i) => (
               <MealCard key={m} meal={day.meals[m]} mealKey={m} week={week} day={todayIndex} isNext={m === nextMeal} index={i} />

@@ -54,6 +54,8 @@ function AuthGate() {
       <Stack.Screen name="cooking" options={{ presentation: "fullScreenModal", animation: "slide_from_bottom" }} />
       <Stack.Screen name="config" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
       <Stack.Screen name="settings" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
+      <Stack.Screen name="photos" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
+      <Stack.Screen name="favorites" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
     </Stack>
   );
 }

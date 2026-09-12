@@ -183,3 +183,6 @@ agent_communication:
 
   - agent: "main"
     message: "Itération 4 : Mode sombre (écran /settings via open-settings sur Accueil : theme-light/dark/system, persistance AsyncStorage, logout-button déplacé dans Réglages) ; Partage recette (recipe-share : Share natif / navigator.share ou presse-papiers sur web) ; Suivi visuel (WeightChart SVG moyenne hebdo + ligne d'objectif, goal-input/goal-save → PUT /api/preferences/goal, milestone-card) ; Notes personnelles (note-input/note-save → PUT /api/preferences/notes {blueprint_id, note}, GET /api/preferences renvoie notes & goal_weight)."
+
+  - agent: "main"
+    message: "Itération 5 : Hydratation (GET /api/hydration/today, POST /api/hydration {delta}, PUT /api/hydration/goal {goal 2-20} ; HydrationCard sur Accueil : hydration-plus/minus/goal/count) ; Galerie photos (GET /api/photos ; écran /photos via home-go-photos, photo-tile-i) ; Favoris (GET /api/favorites ; écran /favorites via home-go-favorites, fav-row-i, fav-cook-i) ; Repas extérieur (action 'outside' dans meals/action → meal.outside + done ; recette : outside-toggle → outside-guide → outside-mark). Quick cards Accueil désormais défilantes (Courses, Favoris, Photos, Maison)."

@@ -60,6 +60,16 @@ const useStyles = makeStyles((colors) => ({
   noteSave: { backgroundColor: colors.brandPrimary, paddingHorizontal: 16, height: 36, borderRadius: 999, alignItems: "center", justifyContent: "center" },
   noteSaveText: { color: colors.onBrandPrimary, fontSize: 12, fontWeight: "600" },
   toast: { marginHorizontal: 20, marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: colors.brandTertiary },
+  outsideBtn: { marginHorizontal: 20, marginTop: 10, height: 48, borderRadius: 999, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border },
+  outsideBtnOn: { backgroundColor: colors.brandTertiary, borderColor: colors.brandPrimary },
+  guide: { marginHorizontal: 20, marginTop: 10, padding: 14, borderRadius: 16, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.warning },
+  guideTitle: { color: colors.onSurface, fontSize: 14, fontWeight: "600", marginBottom: 8 },
+  guideLine: { flexDirection: "row", gap: 10, paddingVertical: 6, borderTopWidth: 1, borderTopColor: colors.divider },
+  guideEmoji: { fontSize: 16, width: 22 },
+  guideText: { color: colors.onSurfaceSecondary, fontSize: 13, lineHeight: 19, flex: 1 },
+  guideTip: { color: colors.muted, fontSize: 11, marginTop: 8, lineHeight: 16 },
+  guideAction: { marginTop: 12, height: 42, borderRadius: 999, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8 },
+  guideActionText: { color: colors.onBrandPrimary, fontSize: 13, fontWeight: "600" },
   toastText: { color: colors.onBrandTertiary, fontSize: 12 },
 }));
 
@@ -69,6 +79,22 @@ const MOODS = [
   { key: "quick", label: "⚡ Rapide" },
   { key: "veg", label: "🌱 Végétarien" },
 ];
+
+function outsideGuide(meal: any): { emoji: string; text: string }[] {
+  const comps: any[] = meal.components ?? [];
+  const by = (cat: string) => comps.find((c) => c.category === cat);
+  const p = by("protein"), v = by("vegetables"), s = by("starch"), f = by("fat"), d = by("dairy"), fr = by("fruit");
+  const out: { emoji: string; text: string }[] = [];
+  if (p) out.push({ emoji: "🥩", text: `Protéine : une pièce grillée, rôtie, vapeur ou en papillote (viande maigre, poisson, œufs, tofu) — environ ${p.grams} g, soit la taille de votre paume. Évitez panures, fritures et sauces crémeuses.` });
+  if (v) out.push({ emoji: "🥦", text: `Légumes : demandez-les en accompagnement principal (${v.grams} g minimum, à volonté), crus ou cuits, sans beurre ajouté. Une salade verte en entrée est un bon réflexe.` });
+  if (s) out.push({ emoji: "🍚", text: `Féculents : gardez environ ${s.grams} g cuits, soit la moitié d’une portion restaurant classique. Riz, pâtes, pommes de terre vapeur ou pain — un seul à la fois.` });
+  else out.push({ emoji: "🍞", text: "Pas de féculent prévu à ce repas : évitez la corbeille de pain et les frites, misez sur les légumes." });
+  if (f) out.push({ emoji: "🫒", text: `Matières grasses : ${f.grams} g maximum. Demandez la sauce et la vinaigrette à part, et dosez vous-même (1 cuillère à soupe).` });
+  if (d) out.push({ emoji: "🧀", text: `Laitage : un yaourt nature, un fromage blanc ou une petite part de fromage (${d.grams} g) plutôt qu’un dessert sucré.` });
+  if (fr) out.push({ emoji: "🍎", text: "Dessert : un fruit frais ou une salade de fruits sans sirop. Le café gourmand attendra une autre occasion." });
+  out.push({ emoji: "🍕", text: "Selon la cuisine : italien → une pizza fine légumes + salade (½ pizza si grande) ; asiatique → wok ou bouillon, riz nature ; brasserie → plat du jour grillé + légumes ; fast-food → burger simple sans frites + salade." });
+  return out;
+}
 
 export default function RecipeScreen() {
   const styles = useStyles();
@@ -82,6 +108,7 @@ export default function RecipeScreen() {
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [note, setNote] = useState("");
+  const [outsideOpen, setOutsideOpen] = useState(false);
   const [savedNote, setSavedNote] = useState("");
 
   const day = program?.weeks?.[week]?.days?.[dayIdx];
@@ -278,6 +305,24 @@ export default function RecipeScreen() {
 
         {(mealKey === "lunch" || mealKey === "dinner") && (
           <>
+            <Pressable testID="outside-toggle" onPress={() => setOutsideOpen((o) => !o)} style={[styles.outsideBtn, (meal as any).outside && styles.outsideBtnOn]}>
+              <LucideIcon name="utensils-crossed" size={16} color={themeColors.warning} />
+              <Text style={styles.btnText}>{(meal as any).outside ? "Repas pris à l’extérieur ✓" : "Je mange à l’extérieur"}</Text>
+              <LucideIcon name={outsideOpen ? "chevron-up" : "chevron-down"} size={14} color={themeColors.muted} />
+            </Pressable>
+            {outsideOpen && (
+              <View style={styles.guide} testID="outside-guide">
+                <Text style={styles.guideTitle}>🍴 Le bon choix au restaurant</Text>
+                {outsideGuide(meal).map((g, i) => (
+                  <View key={i} style={styles.guideLine}><Text style={styles.guideEmoji}>{g.emoji}</Text><Text style={styles.guideText}>{g.text}</Text></View>
+                ))}
+                <Text style={styles.guideTip}>Repères : une portion de protéine = la paume de la main ; les féculents = le poing fermé ; les légumes = les deux mains ouvertes. Boisson : eau, plate ou gazeuse.</Text>
+                <Pressable testID="outside-mark" disabled={!!busy} onPress={() => run("outside", "outside")} style={styles.guideAction}>
+                  <LucideIcon name={(meal as any).outside ? "undo-2" : "check"} size={15} color={themeColors.onBrandPrimary} />
+                  <Text style={styles.guideActionText}>{(meal as any).outside ? "Finalement je cuisine à la maison" : "Marquer comme pris à l’extérieur"}</Text>
+                </Pressable>
+              </View>
+            )}
             <Text style={[styles.sectionTitle, { fontSize: 14, marginTop: 18, marginBottom: 0 }]}>Une envie particulière ?</Text>
             <View style={styles.moodRow}>
               {MOODS.map((m) => (

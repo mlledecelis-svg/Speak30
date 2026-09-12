@@ -76,6 +76,13 @@ Application mobile (Expo React Native) portage de https://elegant-starlight-eebd
 - **Suivi visuel** : courbe SVG lissée par semaine (`WeightChart`), ligne d'objectif (`PUT /preferences/goal`), carte d'encouragement par paliers (25/50/75 %, objectif atteint) avec barre de progression
 - **Notes personnelles** : note privée par recette (`PUT /preferences/notes`), pré-remplie à chaque retour de la recette
 
+## Itération 5 — quotidien & motivation (livrée)
+- **Hydratation** (Accueil) : anneau de progression, + / − verre, objectif ajustable (`/hydration/today`, `/hydration`, `/hydration/goal`)
+- **Galerie photos** (`/photos`, `GET /photos`) : toutes les photos de plats groupées par programme / semaine, ouverture de la recette
+- **Repas à l'extérieur** (fiche recette) : guide « Le bon choix au restaurant » adapté aux portions du repas + action `outside` (compté comme fait)
+- **Recettes favorites** (`/favorites`, `GET /favorites`) : liste des coups de cœur du programme actif avec Cuisiner en un geste
+- Accueil : raccourcis défilants Courses / Favoris / Photos / Maison
+
 ## Stack technique
 - Frontend : Expo Router 57, Reanimated 4, gorhom/bottom-sheet, expo-image, expo-linear-gradient, @react-native-vector-icons/lucide, expo-blur
 - Backend : FastAPI, Motor (MongoDB), bcrypt, httpx (Emergent Google Auth)

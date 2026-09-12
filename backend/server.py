@@ -8,11 +8,12 @@ import os
 import logging
 import random
 import uuid
+import re
 import httpx
 import bcrypt
 from foods import library_payload, DEFAULT_PROGRAM
 from storage import init_storage, put_object, get_object, APP_NAME
-from engine import (generate_plan, shopping_for_week, replace_meal, replace_component, swap_day, can_swap, parse_program_text, normalize_program, MOODS)
+from engine import (generate_plan, shopping_for_week, replace_meal, replace_component, swap_day, can_swap, parse_program_text, normalize_program, MOODS, MEAL_LABELS)
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Dict, Any
@@ -427,6 +428,10 @@ async def meal_action(program_id: str, payload: MealActionIn, user: User = Depen
             raise HTTPException(status_code=404, detail="Repas introuvable")
         if payload.action == "done":
             meal["done"] = bool(payload.value) if payload.value is not None else not meal.get("done")
+        elif payload.action == "outside":
+            meal["outside"] = not meal.get("outside")
+            meal["done"] = bool(meal["outside"]) or meal.get("done", False)
+            message = "🍴 Repas pris à l'extérieur, compté comme fait." if meal["outside"] else "Repas à nouveau prévu à la maison."
         elif payload.action == "favorite":
             meal["favorite"] = not meal.get("favorite")
             op = "$addToSet" if meal["favorite"] else "$pull"
@@ -582,6 +587,89 @@ async def get_badges(program_id: str, user: User = Depends(get_current_user)):
         {"id": "perfect", "label": "Semaine parfaite", "icon": "trophy", "desc": "Tous les repas d'une semaine faits", "earned": any(w["perfect_week"] for w in weeks_out), "progress": sum(1 for w in weeks_out if w["perfect_week"]), "target": 1},
     ]
     return {"weeks": weeks_out, "badges": badges, "meals_done": total_done, "meals_total": total_meals, "best_streak": best_streak, "meal_times": MEAL_TIMES}
+
+
+# ---------------------------------------------------------------------------
+# Hydratation, galerie photos, favoris
+# ---------------------------------------------------------------------------
+class HydrationIn(BaseModel):
+    delta: int = 0
+    date: Optional[str] = None
+
+
+class WaterGoalIn(BaseModel):
+    goal: int
+
+
+def _today() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+async def _hydration(user_id: str, date: str) -> Dict[str, Any]:
+    prefs = await _prefs(user_id)
+    goal = int(prefs.get("water_goal") or 8)
+    doc = await db.hydration.find_one({"user_id": user_id, "date": date}, {"_id": 0})
+    glasses = int(doc["glasses"]) if doc else 0
+    history = await db.hydration.find({"user_id": user_id}, {"_id": 0, "date": 1, "glasses": 1}).sort("date", -1).to_list(7)
+    return {"date": date, "glasses": glasses, "goal": goal, "progress": min(100, round(glasses * 100 / goal)) if goal else 0, "history": history}
+
+
+@api_router.get("/hydration/today")
+async def hydration_today(user: User = Depends(get_current_user)):
+    return await _hydration(user.user_id, _today())
+
+
+@api_router.post("/hydration")
+async def hydration_update(payload: HydrationIn, user: User = Depends(get_current_user)):
+    date = payload.date or _today()
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+        raise HTTPException(status_code=400, detail="Date invalide")
+    doc = await db.hydration.find_one({"user_id": user.user_id, "date": date}, {"_id": 0})
+    glasses = max(0, min(30, (int(doc["glasses"]) if doc else 0) + int(payload.delta)))
+    await db.hydration.update_one({"user_id": user.user_id, "date": date}, {"$set": {"glasses": glasses, "updated_at": datetime.now(timezone.utc)}}, upsert=True)
+    return await _hydration(user.user_id, date)
+
+
+@api_router.put("/hydration/goal")
+async def hydration_goal(payload: WaterGoalIn, user: User = Depends(get_current_user)):
+    if not (2 <= payload.goal <= 20):
+        raise HTTPException(status_code=400, detail="Objectif entre 2 et 20 verres")
+    await db.preferences.update_one({"user_id": user.user_id}, {"$set": {"water_goal": payload.goal}}, upsert=True)
+    return await _hydration(user.user_id, _today())
+
+
+@api_router.get("/photos")
+async def list_photos(user: User = Depends(get_current_user)):
+    programs = await db.programs.find({"user_id": user.user_id, **NEW_FORMAT}, {"_id": 0, "id": 1, "name": 1, "active": 1, "weeks": 1, "created_at": 1}).sort("created_at", -1).to_list(50)
+    out = []
+    for p in programs:
+        for wi, week in enumerate(p.get("weeks", [])):
+            for di, day in enumerate(week["days"]):
+                for key, meal in day["meals"].items():
+                    if meal.get("photo"):
+                        out.append({"path": meal["photo"], "program_id": p["id"], "program_name": p["name"], "active": bool(p.get("active")), "week": wi, "day": di, "day_name": day["day"], "meal": key, "meal_label": MEAL_LABELS.get(key, key), "recipe_name": meal["recipe"]["name"]})
+    return {"photos": out, "total": len(out)}
+
+
+@api_router.get("/favorites")
+async def list_favorites(user: User = Depends(get_current_user)):
+    prefs = await _prefs(user.user_id)
+    fav_bps = set(prefs.get("favorites", []))
+    doc = await db.programs.find_one({"user_id": user.user_id, "active": True, **NEW_FORMAT}, {"_id": 0})
+    out = []
+    seen = set()
+    if doc:
+        for wi, week in enumerate(doc["weeks"]):
+            for di, day in enumerate(week["days"]):
+                for key, meal in day["meals"].items():
+                    bp = meal["recipe"]["blueprint_id"]
+                    if meal.get("favorite") or bp in fav_bps:
+                        sig = (bp, meal["recipe"]["name"])
+                        if sig in seen:
+                            continue
+                        seen.add(sig)
+                        out.append({"program_id": doc["id"], "week": wi, "day": di, "day_name": day["day"], "meal": key, "meal_label": MEAL_LABELS.get(key, key), "recipe": meal["recipe"], "components": meal["components"], "photo": meal.get("photo"), "favorite": bool(meal.get("favorite")), "done": bool(meal.get("done"))})
+    return {"favorites": out, "total": len(out)}
 
 
 # ---------------------------------------------------------------------------
