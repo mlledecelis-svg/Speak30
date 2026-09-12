@@ -55,7 +55,7 @@ export default function CookingScreen() {
 
   const day = program?.weeks?.[week]?.days?.[dayIdx];
   const meal = day?.meals?.[mealKey];
-  if (!meal || !day) {
+  if (!meal || !day || !meal.recipe) {
     return (
       <View style={[styles.root, { alignItems: "center", justifyContent: "center" }]}>
         <Text style={{ color: themeColors.muted }}>Repas introuvable</Text>

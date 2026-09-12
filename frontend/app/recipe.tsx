@@ -88,7 +88,7 @@ export default function RecipeScreen() {
     } finally { setBusy(null); }
   };
 
-  if (!meal || !day) {
+  if (!meal || !day || !meal.recipe) {
     return (
       <View style={[styles.root, { alignItems: "center", justifyContent: "center" }]}>
         <Text style={{ color: themeColors.muted }}>Repas introuvable</Text>

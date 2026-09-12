@@ -291,8 +291,11 @@ async def get_preferences(user: User = Depends(get_current_user)):
 # ---------------------------------------------------------------------------
 # Programmes
 # ---------------------------------------------------------------------------
+NEW_FORMAT = {"shopping_checked": {"$exists": True}}
+
+
 async def _program(program_id: str, user_id: str) -> Dict[str, Any]:
-    doc = await db.programs.find_one({"id": program_id, "user_id": user_id}, {"_id": 0})
+    doc = await db.programs.find_one({"id": program_id, "user_id": user_id, **NEW_FORMAT}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Programme introuvable")
     return doc
@@ -319,16 +322,16 @@ async def generate_program(user: User = Depends(get_current_user)):
 
 @api_router.get("/programs")
 async def list_programs(user: User = Depends(get_current_user)):
-    docs = await db.programs.find({"user_id": user.user_id}, {"_id": 0, "weeks": 0, "shopping_checked": 0}).sort("created_at", -1).to_list(50)
+    docs = await db.programs.find({"user_id": user.user_id, **NEW_FORMAT}, {"_id": 0, "weeks": 0, "shopping_checked": 0}).sort("created_at", -1).to_list(50)
     return [_serialize(d) for d in docs]
 
 
 @api_router.get("/programs/current")
 async def current_program(user: User = Depends(get_current_user)):
-    doc = await db.programs.find_one({"user_id": user.user_id, "active": True}, {"_id": 0})
+    doc = await db.programs.find_one({"user_id": user.user_id, "active": True, **NEW_FORMAT}, {"_id": 0})
     if not doc:
-        doc = await db.programs.find_one({"user_id": user.user_id}, {"_id": 0}, sort=[("created_at", -1)])
-    if not doc or "weeks" not in doc or not doc["weeks"] or "meals" not in doc["weeks"][0]["days"][0] or not isinstance(next(iter(doc["weeks"][0]["days"][0]["meals"].values()), {}), dict):
+        doc = await db.programs.find_one({"user_id": user.user_id, **NEW_FORMAT}, {"_id": 0}, sort=[("created_at", -1)])
+    if not doc or not doc.get("weeks"):
         return None
     return _serialize(doc)
 
@@ -522,6 +525,10 @@ async def startup():
         await db.programs.create_index([("user_id", 1), ("created_at", -1)])
         await db.weights.create_index([("user_id", 1), ("date", 1)])
         await db.inventory.create_index([("user_id", 1), ("location", 1)])
+        # Nettoyage des programmes de l'ancien format (itération 1), incompatibles avec les fiches recettes
+        res = await db.programs.delete_many({"shopping_checked": {"$exists": False}})
+        if res.deleted_count:
+            logger.info(f"programmes ancien format supprimés : {res.deleted_count}")
     except Exception as e:
         logger.warning(f"index creation: {e}")
 

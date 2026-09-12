@@ -90,9 +90,9 @@ function LineRow({ line, eqLabels, onChange, testID }: { line: Line; eqLabels: R
           <Text style={{ color: themeColors.muted, fontSize: 12 }}>g</Text>
         </View>
       </View>
-      {line.options.length > 1 && (
+      {(line.options ?? []).length > 1 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.refRow}>
-          {line.options.map((o) => (
+          {(line.options ?? []).map((o) => (
             <Pressable key={o} testID={`${testID}-ref-${o}`} onPress={() => onChange({ ...line, ref: o })} style={[styles.refChip, line.ref === o && styles.refChipOn]}>
               <Text style={[styles.refText, line.ref === o && styles.refTextOn]}>{eqLabels[o] ?? o}</Text>
             </Pressable>
@@ -166,7 +166,9 @@ export default function ConfigScreen() {
       await generate();
       router.replace("/(tabs)/planner");
     } catch (e: any) {
-      setMsg(e?.message ?? "La génération a échoué.");
+      const m = e?.message ?? "La génération a échoué.";
+      setMsg(m);
+      Alert.alert("Génération impossible", m);
     } finally { setBusy(false); }
   };
 
@@ -315,9 +317,9 @@ export default function ConfigScreen() {
                 <View key={r.k} style={styles.ruleRow}>
                   <Text style={styles.ruleLabel}>{r.l}</Text>
                   <View style={styles.stepper}>
-                    <Pressable testID={`rule-${r.k}-dec`} onPress={() => setRule(r.k, Math.max(0, targets.rules[r.k] - 1))} style={styles.stepBtn}><LucideIcon name="minus" size={14} color={themeColors.onSurfaceTertiary} /></Pressable>
-                    <Text style={[styles.stepInput, { minWidth: 40 }]}>{targets.rules[r.k]}</Text>
-                    <Pressable testID={`rule-${r.k}-inc`} onPress={() => setRule(r.k, targets.rules[r.k] + 1)} style={styles.stepBtn}><LucideIcon name="plus" size={14} color={themeColors.onSurfaceTertiary} /></Pressable>
+                    <Pressable testID={`rule-${r.k}-dec`} onPress={() => setRule(r.k, Math.max(0, (targets.rules?.[r.k] ?? 0) - 1))} style={styles.stepBtn}><LucideIcon name="minus" size={14} color={themeColors.onSurfaceTertiary} /></Pressable>
+                    <Text style={[styles.stepInput, { minWidth: 40 }]}>{targets.rules?.[r.k] ?? 0}</Text>
+                    <Pressable testID={`rule-${r.k}-inc`} onPress={() => setRule(r.k, (targets.rules?.[r.k] ?? 0) + 1)} style={styles.stepBtn}><LucideIcon name="plus" size={14} color={themeColors.onSurfaceTertiary} /></Pressable>
                   </View>
                 </View>
               ))}

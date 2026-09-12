@@ -32,9 +32,16 @@ export async function api<T = any>(path: string, options: RequestInit = {}): Pro
     throw new Error("Unauthorized");
   }
   const text = await res.text();
-  const data = text ? JSON.parse(text) : {};
+  let data: any = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = {};
+  }
   if (!res.ok) {
-    throw new Error((data && data.detail) || res.statusText);
+    const detail = data && data.detail;
+    const msg = typeof detail === "string" ? detail : Array.isArray(detail) ? detail.map((d: any) => d.msg).join(", ") : `Erreur serveur (${res.status})`;
+    throw new Error(msg);
   }
   return data as T;
 }

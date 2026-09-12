@@ -66,7 +66,7 @@ export default function Home() {
 
   const weekData = program?.weeks?.[Math.min(week, (program?.weeks?.length ?? 1) - 1)];
   const day = weekData?.days?.[todayIndex];
-  const active = day ? MEAL_ORDER.filter((m) => day.meals[m]) : [];
+  const active = day ? MEAL_ORDER.filter((m) => day.meals[m]?.recipe) : [];
   const doneCount = active.filter((m) => day!.meals[m].done).length;
   const progress = active.length ? Math.round((doneCount / active.length) * 100) : 0;
   const nextMeal = useMemo(() => {

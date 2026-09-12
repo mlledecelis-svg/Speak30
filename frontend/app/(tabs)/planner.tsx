@@ -140,7 +140,7 @@ export default function Planner() {
         ) : (
           <>
             {toast && <View style={styles.toast}><Text style={styles.toastText}>{toast}</Text></View>}
-            {featuredMeal && (
+            {featuredMeal?.recipe && (
               <Pressable testID="featured-recipe" onPress={() => router.push({ pathname: "/recipe", params: { week: String(week), day: String(featured!.day), meal: featured!.meal } })} style={styles.featured}>
                 <Text style={{ fontSize: 22 }}>⭐</Text>
                 <View style={{ flex: 1 }}>
@@ -159,7 +159,7 @@ export default function Planner() {
                 </Pressable>
               )}
             </View>
-            {MEAL_ORDER.filter((m) => day.meals[m]).map((m) => {
+            {MEAL_ORDER.filter((m) => day.meals[m]?.recipe).map((m) => {
               const meal = day.meals[m];
               return (
                 <Pressable key={m} testID={`meal-row-${m}`} onPress={() => router.push({ pathname: "/recipe", params: { week: String(week), day: String(dayIdx), meal: m } })} style={[styles.row, meal.done && styles.rowDone]}>

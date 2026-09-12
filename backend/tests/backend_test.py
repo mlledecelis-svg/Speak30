@@ -347,3 +347,177 @@ class TestFullFlow:
         day = r.json()["day"]
         assert day["meals"]["lunch"]["recipe"]["name"] == dinner0
         assert day["meals"]["dinner"]["recipe"]["name"] == lunch0
+
+
+
+# -------- Migration & Robustness (old-format targets/programs, garbage payloads, elision) --------
+class TestMigrationAndRobustness:
+    """Verifies backwards-compat handling of iteration-1 documents in Mongo
+    (old-format targets → normalized, old-format programs → excluded/deleted at
+    startup) and defensive normalization for garbage PUT /targets payloads.
+    Also validates recipe-name elision rule and 404 on unknown program id."""
+
+    _headers = None
+    _user_id = None
+
+    @classmethod
+    def _auth(cls):
+        if cls._headers is None:
+            email = f"test_mig_{uuid.uuid4().hex[:8]}@test.fr"
+            r = requests.post(f"{API}/auth/signup", json={"email": email, "password": "secret123", "name": "T Mig"}, timeout=15)
+            assert r.status_code == 200, r.text
+            body = r.json()
+            cls._headers = {"Authorization": f"Bearer {body['session_token']}"}
+            cls._user_id = body["user"]["user_id"]
+        return cls._headers
+
+    @staticmethod
+    def _db():
+        # Direct pymongo access to same MongoDB used by backend
+        from pymongo import MongoClient
+        mongo_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+        db_name = os.environ.get("DB_NAME", "test_database")
+        return MongoClient(mongo_url)[db_name]
+
+    # ---- 01: Old-format targets migration ----
+    def test_01_old_format_targets_get_returns_new_format(self):
+        h = self._auth()
+        db = self._db()
+        old_doc = {
+            "user_id": self._user_id,
+            "breakfast": {
+                "active": True, "variant": "sweet_cereal",
+                "items": [{"category": "Féculents", "label": "Pain", "grams": 60}],
+            },
+            "lunch": {"active": True, "items": [{"category": "Protéines", "label": "x", "grams": 130}]},
+            "snack": {"active": True, "items": []},
+            "dinner": {"active": True, "items": []},
+            "rules": {"max_fruits_per_day": 3, "exclusions": []},
+            "duration_weeks": 4,
+        }
+        db.targets.replace_one({"user_id": self._user_id}, old_doc, upsert=True)
+
+        # GET /api/targets should return normalized new format (never 500)
+        r = requests.get(f"{API}/targets", headers=h, timeout=10)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        # breakfast.variant normalized 'sweet_cereal' → 'sweet'
+        assert d["breakfast"]["variant"] == "sweet", f"variant not normalized: {d['breakfast'].get('variant')}"
+        for tpl in ("savory", "sweet_cereal", "sweet_bread"):
+            assert isinstance(d["breakfast"][tpl], list) and len(d["breakfast"][tpl]) > 0
+            for ln in d["breakfast"][tpl]:
+                for k in ("ref", "options", "category", "grams"):
+                    assert k in ln, f"breakfast.{tpl} missing {k}"
+        for meal in ("lunch", "snack", "dinner"):
+            items = d[meal]["items"]
+            assert isinstance(items, list) and len(items) > 0
+            for ln in items:
+                for k in ("ref", "options", "category", "grams"):
+                    assert k in ln, f"{meal}.items missing {k}"
+                assert isinstance(ln["options"], list) and len(ln["options"]) > 0
+        # rules preserved+defaults
+        assert d["rules"]["max_fruits_per_day"] == 3
+        assert "exclusions" in d["rules"] and isinstance(d["rules"]["exclusions"], list)
+        assert d["duration_weeks"] == 4
+
+    def test_02_generate_after_old_format_returns_200(self):
+        h = self._auth()
+        # Re-insert the old-format targets to simulate a user never having PUT /targets since migration
+        db = self._db()
+        old_doc = {
+            "user_id": self._user_id,
+            "breakfast": {"active": True, "variant": "sweet_cereal", "items": [{"category": "Féculents", "label": "Pain", "grams": 60}]},
+            "lunch": {"active": True, "items": [{"category": "Protéines", "label": "x", "grams": 130}]},
+            "snack": {"active": True, "items": []},
+            "dinner": {"active": True, "items": []},
+            "rules": {"max_fruits_per_day": 3, "exclusions": []},
+            "duration_weeks": 4,
+        }
+        db.targets.replace_one({"user_id": self._user_id}, old_doc, upsert=True)
+        r = requests.post(f"{API}/programs/generate", headers=h, timeout=60)
+        assert r.status_code == 200, f"generate failed on legacy targets: {r.status_code} {r.text[:400]}"
+        d = r.json()
+        assert d["duration_weeks"] == 4 and len(d["weeks"]) == 4
+        # sanity: recipe.name/steps present (was crashing frontend at itération 1)
+        m = d["weeks"][0]["days"][0]["meals"]["lunch"]
+        assert m["recipe"]["name"] and isinstance(m["recipe"]["steps"], list) and len(m["recipe"]["steps"]) > 0
+        TestMigrationAndRobustness._legacy_program_id = d["id"]
+
+    # ---- 03: PUT /targets with garbage/partial payload ----
+    def test_03_put_targets_garbage_payload_normalized(self):
+        h = self._auth()
+        garbage = {"lunch": {"items": "garbage"}, "rules": None, "duration_weeks": "abc"}
+        r = requests.put(f"{API}/targets", json=garbage, headers=h, timeout=10)
+        assert r.status_code == 200, r.text
+        d = requests.get(f"{API}/targets", headers=h, timeout=10).json()
+        assert isinstance(d["lunch"]["items"], list) and len(d["lunch"]["items"]) > 0
+        for ln in d["lunch"]["items"]:
+            for k in ("ref", "options", "category", "grams"):
+                assert k in ln
+        assert isinstance(d["rules"], dict) and isinstance(d["rules"].get("exclusions"), list)
+        assert d["duration_weeks"] in (1, 2, 3, 4, 5, 6, 7, 8), d["duration_weeks"]
+        # generate must still work after garbage payload
+        r2 = requests.post(f"{API}/programs/generate", headers=h, timeout=60)
+        assert r2.status_code == 200, r2.text
+
+    # ---- 04: Old-format programs excluded from listings ----
+    def test_04_old_format_programs_not_returned(self):
+        h = self._auth()
+        db = self._db()
+        # Insert a legacy program document (no `shopping_checked` field)
+        legacy_id = f"legacy_{uuid.uuid4().hex[:8]}"
+        db.programs.insert_one({
+            "id": legacy_id,
+            "user_id": self._user_id,
+            "name": "Legacy",
+            "duration_weeks": 4,
+            "weeks": [],
+            "active": False,
+            # NO shopping_checked field on purpose (old format)
+        })
+        try:
+            # /programs list must NOT include the legacy one
+            r = requests.get(f"{API}/programs", headers=h, timeout=10)
+            assert r.status_code == 200
+            assert all(p["id"] != legacy_id for p in r.json()), "legacy program leaked into list"
+            # /programs/{id} on legacy id → 404
+            r2 = requests.get(f"{API}/programs/{legacy_id}", headers=h, timeout=10)
+            assert r2.status_code == 404
+            # /programs/current must not surface a program without weeks/new format
+            rc = requests.get(f"{API}/programs/current", headers=h, timeout=10)
+            assert rc.status_code == 200
+            cur = rc.json()
+            assert cur is None or cur["id"] != legacy_id
+        finally:
+            db.programs.delete_one({"id": legacy_id})
+
+    # ---- 05: 404 on unknown program id (well-formed but not found) ----
+    def test_05_unknown_program_id_404(self):
+        h = self._auth()
+        r = requests.get(f"{API}/programs/{uuid.uuid4()}", headers=h, timeout=10)
+        assert r.status_code == 404
+
+    # ---- 06: Recipe names elision ('de a…' → "d'a…") ----
+    def test_06_recipe_names_elision(self):
+        h = self._auth()
+        # Reset targets to valid then generate
+        payload = requests.get(f"{API}/targets", headers=h, timeout=10).json()
+        payload["duration_weeks"] = 4
+        payload["rules"]["exclusions"] = []
+        assert requests.put(f"{API}/targets", json=payload, headers=h, timeout=10).status_code == 200
+        r = requests.post(f"{API}/programs/generate", headers=h, timeout=60)
+        assert r.status_code == 200
+        d = r.json()
+        # Spec: names must not contain 'de a', 'de e', 'de o', 'de é' (elision required).
+        # 'de haricots' is intentional (h aspiré) — not tested.
+        bad_patterns = [" de a", " de e", " de o", " de é", " De A", " De E", " De O", " De É"]
+        offenders = []
+        for w in d["weeks"]:
+            for day in w["days"]:
+                for m in day["meals"].values():
+                    name = m["recipe"]["name"]
+                    lname = " " + name  # so a leading "De …" is caught too
+                    for pat in bad_patterns:
+                        if pat in lname:
+                            offenders.append((name, pat))
+        assert not offenders, f"elision missing in recipe names: {offenders[:10]}"

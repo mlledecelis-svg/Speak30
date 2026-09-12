@@ -174,3 +174,6 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: "Itération 2 complète. Credentials dans /app/memory/test_credentials.md (testuser1@test.fr / testpass123). Le programme existant de l'utilisateur test a déjà été régénéré au nouveau format. Web preview : les images Unsplash peuvent être lentes."
+
+  - agent: "main"
+    message: "Bug utilisateur : 'Générer mon programme' → écran d'erreur. Cause : cibles (targets) et programmes de l'ancien format (itération 1) en base → KeyError 'ref' (500) côté backend et crash de rendu côté frontend. Corrections : normalize_program robuste (migration des anciens formats, variantes, règles), suppression au démarrage des programmes ancien format, filtres NEW_FORMAT sur /programs*, api.ts tolérant aux réponses non-JSON, garde-fous frontend (options ?? [], meals sans recipe ignorés), Alert sur échec de génération. Plus dédup protéine midi/soir et swap_day (catégories + can_swap) corrigés après itération précédente."

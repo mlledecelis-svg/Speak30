@@ -1,0 +1,32 @@
+{
+  "summary": "Iteration 3 (bug fix regression + robustness). Backend: 35/36 pass, 1 intentional skip (replace_component when no equivalent available). Both previous engine bugs are FIXED and verified: (a) no duplicate protein food_id between lunch and dinner on the same day across 2 weeks x 7 days x 2 users; (b) swap_day succeeds when dinner.items == lunch.items after generate. New tests added (TestMigrationAndRobustness): old-format targets injected directly into Mongo (variant=sweet_cereal, lunch.items with plain {category:'Protéines',label,grams}) are normalized to new format on GET /api/targets (breakfast.variant=='sweet', lunch.items[0] has ref/options), POST /api/programs/generate returns 200 with 4 weeks + recipe.name/steps (no more 500 KeyError 'ref'); PUT /api/targets with garbage payload ({lunch:{items:'garbage'},rules:null,duration_weeks:'abc'}) returns 200 and GET /api/targets returns valid defaults, generate still works; old-format programs (no shopping_checked field) are excluded from GET /programs, GET /programs/current, and GET /programs/{id} (which returns 404); GET /programs/{unknown-id} returns 404; recipe names always use elision (no 'de a|e|o|é' pattern found across 4 weeks of generated recipes). Frontend (390x844): signup → home → home-cta-generate → /config → method-text + paste-input + paste-analyze (message '5 ligne(s) détectée(s)' + basculement en Saisie) → generate-button → /planner with meals rendered (no red screen, no JS errors). Additional flows tested on seeded testuser1: home done toggle, planner row-replace changes recipe name, recipe modal (favorite, rating-like, mood-fresh, recipe-quick, component-swap-0, recipe-cook), cooking mode (cooking-step-0, cooking-finish), inventory pantry-priority-toggle, tracker loads. One benign console 400 observed when component-swap has no equivalent (handled with French toast). Deprecated packages / SafeAreaView / raw text issues: none detected.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py NEW_FORMAT filter {'shopping_checked': {'$exists': True}} is applied everywhere (list/current/single-get/activate/shopping/toggle/meal-action) which correctly hides old-format programs; startup delete_many() also removes them (defensive double-safety). Good.",
+    "engine.normalize_program() handles: dict/non-dict input, missing keys, string 'garbage' in items lists (falls back to defaults), rules=None, duration_weeks='abc' (falls back to 4), variant aliasing (sweet_cereal→sweet, salted→savory). Robust.",
+    "engine.py line 219 applies elision `re.sub(r\"\\b(de|De) ([aeiouyhéèêœ])\", ...)` to recipe names — verified no leaks in generated content.",
+    "Test coverage now includes direct Mongo injection using pymongo — the tests explicitly rely on MONGO_URL/DB_NAME env vars set the same way as backend.",
+    "Minor: TestFullFlow occasionally hit a transient ConnectTimeout to the public URL on test_24 (retried and passed) — network flake, not app bug."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py"],
+  "success_rate": {
+    "backend": "97.2% (35/36) — 1 intentional skip, 0 failures. All original 30 tests still green; both previously reported engine bugs fixed and re-verified; 6 new robustness/migration tests added and green.",
+    "frontend": "100% for tested flows (signup, home cta, config method-text with paste, generate, planner, done toggle, row-replace, recipe modal with all moods/ratings/component-swap, cooking mode with step + finish, inventory pantry-priority-toggle, tracker load). No JS errors."
+  },
+  "seed_data_creation": "Each backend test class signs up its own fresh user (test_<uuid>@test.fr / test_mig_<uuid>@test.fr). TestMigrationAndRobustness inserts a legacy-format targets document (via pymongo) and a legacy-format program document (no shopping_checked) for its own user, and deletes the legacy program in the finally block. Frontend uses seeded testuser1@test.fr and a fresh e2e_<uuid> signup. No production data mutated.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "pytest.ini enforces `-n 2 --dist loadscope`. TestFullFlow shares state via class attrs. TestMigrationAndRobustness uses pymongo directly — requires MONGO_URL & DB_NAME env vars (defaults to mongodb://localhost:27017 / test_database if not set — matches /app/backend/.env). Frontend tab navigation via URL: /planner /shopping /inventory /tracker /config. Home 'Créer mon programme' = testid `home-cta-generate`. In /config, `method-text` reveals `paste-input`+`paste-analyze`. In /planner, `row-replace-<meal>` regenerates one meal; opening a meal-row reveals the recipe modal with recipe-cook/recipe-quick/recipe-replace/rating-*/mood-*/component-swap-*. Cooking screen has cooking-step-N (tap to check), cooking-reset, cooking-finish. swap-day button only renders when program.can_swap=true.",
+  "rca_of_issue": "Original user bug 'Générer mon programme → écran rouge / error': iteration-1 targets/programs docs in Mongo had legacy shape (lunch.items without ref/options, breakfast.variant='sweet_cereal', no shopping_checked on programs). Backend before fix crashed with KeyError 'ref' during shopping_for_week / step generation, propagating a 500 and red screen on frontend. Fix (already in place at review time): (1) engine.normalize_program() aggressively coerces any partial/legacy targets to the DEFAULT_PROGRAM shape while preserving grams-by-category and rules; (2) server.NEW_FORMAT = {'shopping_checked': {'$exists': True}} filter on every /programs read makes legacy programs invisible; (3) startup delete_many() nettoies définitivement les programmes ancien format. All three verified end-to-end. No further action required by main agent."
+}

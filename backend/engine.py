@@ -62,17 +62,73 @@ def excluded_food_ids(exclusions: List[str]) -> set:
     return out
 
 
+def _clean_lines(lines: Any, defaults: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Valide les lignes ; les formats anciens/incomplets sont ramenés aux lignes par défaut en conservant les grammages par catégorie."""
+    import copy
+    out = copy.deepcopy(defaults)
+    if not isinstance(lines, list):
+        return out
+    valid = all(isinstance(ln, dict) and ln.get("ref") in EQUIVALENCES and isinstance(ln.get("options"), list) and ln.get("category") in CATEGORIES for ln in lines)
+    if valid and lines:
+        for ln in lines:
+            ln["options"] = [o for o in ln["options"] if o in EQUIVALENCES] or [ln["ref"]]
+            if ln["ref"] not in ln["options"]:
+                ln["options"].insert(0, ln["ref"])
+            try:
+                ln["grams"] = max(0.0, float(ln.get("grams", 0) or 0))
+            except (TypeError, ValueError):
+                ln["grams"] = 0.0
+        return lines
+    grams_by_cat = {}
+    for ln in lines:
+        if isinstance(ln, dict) and ln.get("category") in CATEGORIES:
+            try:
+                grams_by_cat[ln["category"]] = float(ln.get("grams", 0) or 0)
+            except (TypeError, ValueError):
+                pass
+    for ln in out:
+        if ln["category"] in grams_by_cat:
+            ln["grams"] = grams_by_cat[ln["category"]]
+    return out
+
+
 def normalize_program(p: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-    base = {k: v for k, v in DEFAULT_PROGRAM.items()}
-    if not p:
+    import copy
+    base = copy.deepcopy(DEFAULT_PROGRAM)
+    if not isinstance(p, dict):
         return base
-    out = dict(base)
+    out = base
     for k in ("breakfast", "lunch", "snack", "dinner", "rules"):
         if isinstance(p.get(k), dict):
             merged = dict(base[k])
-            merged.update(p[k])
+            merged.update({kk: vv for kk, vv in p[k].items() if kk != "items" or k != "breakfast"})
             out[k] = merged
-    out["duration_weeks"] = int(p.get("duration_weeks", base["duration_weeks"]))
+    bf = out["breakfast"]
+    variant = str(bf.get("variant") or "both")
+    bf["variant"] = "sweet" if variant.startswith("sweet") else ("savory" if variant in ("savory", "salted", "sale", "salé") else "both")
+    for tpl in ("savory", "sweet_cereal", "sweet_bread"):
+        bf[tpl] = _clean_lines(bf.get(tpl), DEFAULT_PROGRAM["breakfast"][tpl])
+    bf["active"] = bool(bf.get("active", True))
+    for k in ("lunch", "snack", "dinner"):
+        out[k]["items"] = _clean_lines(out[k].get("items"), DEFAULT_PROGRAM[k]["items"])
+        out[k]["active"] = bool(out[k].get("active", True))
+    r = out["rules"]
+    for key, dflt in DEFAULT_PROGRAM["rules"].items():
+        if key not in r or r[key] is None:
+            r[key] = dflt
+    for key in ("max_fruits_per_day", "max_cheese_per_day", "max_cheese_per_week", "max_sweet_morning"):
+        try:
+            r[key] = max(0, int(float(r[key])))
+        except (TypeError, ValueError):
+            r[key] = DEFAULT_PROGRAM["rules"][key]
+    if not isinstance(r.get("exclusions"), list):
+        r["exclusions"] = []
+    try:
+        out["duration_weeks"] = int(p.get("duration_weeks", 4))
+    except (TypeError, ValueError):
+        out["duration_weeks"] = 4
+    if out["duration_weeks"] not in (1, 2, 3, 4, 5, 6, 7, 8):
+        out["duration_weeks"] = 4
     return out
 
 
@@ -160,6 +216,7 @@ def recipe_name(bp: Dict[str, Any], comp: Dict[str, Dict[str, Any]]) -> str:
         name = name.replace("{protein}", comp["protein"]["food_name"].lower() if comp.get("protein") else "protéine")
         name = name.replace("{veg}", comp["vegetables"]["food_name"].lower() if comp.get("vegetables") else "légumes")
         name = name.replace("{starch}", comp["starch"]["food_name"].lower() if comp.get("starch") else "féculent")
+        name = re.sub(r"\b(de|De) ([aeiouyhéèêœ])", lambda m: ("d'" if m.group(1) == "de" else "D'") + m.group(2), name)
         name = name[0].upper() + name[1:]
     return name
 
