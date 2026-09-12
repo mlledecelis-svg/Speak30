@@ -673,6 +673,94 @@ async def list_favorites(user: User = Depends(get_current_user)):
 
 
 # ---------------------------------------------------------------------------
+# Bilan hebdo & batch cooking
+# ---------------------------------------------------------------------------
+@api_router.get("/programs/{program_id}/recap/{week}")
+async def weekly_recap(program_id: str, week: int, user: User = Depends(get_current_user)):
+    doc = await _program(program_id, user.user_id)
+    if week < 0 or week >= len(doc["weeks"]):
+        raise HTTPException(status_code=404, detail="Semaine introuvable")
+    wk = doc["weeks"][week]
+    meals = done = outside = favs = cooked_min = 0
+    for day in wk["days"]:
+        for m in day["meals"].values():
+            meals += 1
+            if m.get("done"):
+                done += 1
+                cooked_min += int(m["recipe"].get("minutes", 0))
+            if m.get("outside"):
+                outside += 1
+            if m.get("favorite"):
+                favs += 1
+    shop = shopping_for_week(wk, await _pantry(user.user_id), doc.get("shopping_checked", []), week)
+    hist = await db.hydration.find({"user_id": user.user_id}, {"_id": 0, "glasses": 1, "date": 1}).sort("date", -1).to_list(7)
+    prefs = await _prefs(user.user_id)
+    water_goal = int(prefs.get("water_goal") or 8)
+    water_avg = round(sum(h["glasses"] for h in hist) / len(hist), 1) if hist else 0
+    weights = await db.weights.find({"user_id": user.user_id}, {"_id": 0, "weight": 1, "date": 1}).sort("date", -1).to_list(6)
+    trend = None
+    if len(weights) >= 2:
+        trend = round(weights[0]["weight"] - weights[-1]["weight"], 1)
+    pct = round(done * 100 / meals) if meals else 0
+    if meals and pct >= 90:
+        tip = "Semaine exemplaire ! Pour la suite, variez les recettes en testant une « envie » (frais, réconfort, végétarien) sur un repas."
+    elif pct >= 60:
+        tip = "Belle régularité. Repérez les repas sautés : la version ⚡ « Je n'ai pas le temps » vous aidera les jours chargés."
+    elif meals:
+        tip = "Un nouveau départ chaque lundi : préparez vos féculents en avance (batch cooking) pour gagner du temps en semaine."
+    else:
+        tip = "Générez votre programme pour démarrer votre suivi hebdomadaire."
+    if water_avg and water_avg < water_goal * 0.6:
+        tip += " Pensez aussi à l'eau : un verre à chaque repas et un entre les repas."
+    if trend is not None and trend > 0.5:
+        tip += " Le poids fluctue naturellement : gardez une pesée par semaine, le matin, à jeun."
+    return {"week": week + 1, "meals": meals, "done": done, "progress": pct, "outside": outside, "favorites": favs, "cooked_minutes": cooked_min,
+            "shopping_checked": shop["checked"], "shopping_total": shop["total"], "water_avg": water_avg, "water_goal": water_goal, "weight_trend": trend, "tip": tip}
+
+
+BATCH_TIPS = {
+    "starch": "Cuisez la quantité totale en une fois (al dente pour les pâtes, un peu ferme pour le riz), refroidissez vite et conservez 3 jours au frais.",
+    "protein": "Cuisez ou marinez en une seule fournée : portionnez au gramme dans des boîtes, 2 jours au frais ou congelez.",
+    "vegetables": "Lavez, détaillez et précuisez à la vapeur : ils se réchauffent en 3 minutes à la poêle ou au four.",
+}
+
+
+@api_router.get("/programs/{program_id}/batch/{week}")
+async def batch_cooking(program_id: str, week: int, user: User = Depends(get_current_user)):
+    doc = await _program(program_id, user.user_id)
+    if week < 0 or week >= len(doc["weeks"]):
+        raise HTTPException(status_code=404, detail="Semaine introuvable")
+    wk = doc["weeks"][week]
+    groups: Dict[str, Dict[str, Any]] = {}
+    for di, day in enumerate(wk["days"]):
+        for key in ("lunch", "dinner"):
+            m = day["meals"].get(key)
+            if not m:
+                continue
+            for c in m["components"]:
+                if c["category"] not in ("starch", "protein", "vegetables") or c["food_id"] in ("pain_complet", "biscottes"):
+                    continue
+                g = groups.setdefault(c["food_id"], {"food_id": c["food_id"], "food_name": c["food_name"], "category": c["category"], "category_label": c["category_label"], "total_grams": 0, "meals": []})
+                g["total_grams"] += c["grams"]
+                g["meals"].append({"day": di, "day_name": day["day"], "meal": key, "meal_label": MEAL_LABELS[key], "recipe_name": m["recipe"]["name"], "grams": c["grams"], "done": bool(m.get("done"))})
+    out = []
+    for g in groups.values():
+        if len(g["meals"]) < 2:
+            continue
+        g["total_grams"] = int(round(g["total_grams"]))
+        g["tip"] = BATCH_TIPS[g["category"]]
+        g["days"] = sorted({m["day"] for m in g["meals"]})
+        out.append(g)
+    out.sort(key=lambda g: (-len(g["meals"]), g["category"]))
+    sessions = [
+        {"title": "Dimanche · session 1", "desc": "Féculents et légumes du lundi au mercredi", "items": [g["food_name"] for g in out if any(d <= 2 for d in g["days"])]},
+        {"title": "Mercredi soir · session 2", "desc": "Protéines et légumes du jeudi au dimanche", "items": [g["food_name"] for g in out if any(d >= 3 for d in g["days"])]},
+    ]
+    saved = sum(max(0, (len(g["meals"]) - 1) * (12 if g["category"] == "starch" else 8)) for g in out)
+    return {"week": week + 1, "groups": out, "sessions": sessions, "minutes_saved": saved}
+
+
+# ---------------------------------------------------------------------------
 # Weight tracking
 # ---------------------------------------------------------------------------
 @api_router.get("/weights")

@@ -13,6 +13,7 @@ import { queryClient } from "@/src/query-client";
 import { AuthProvider, useAuth } from "@/src/auth";
 import { ProgramProvider } from "@/src/program-store";
 import { BrandLogo } from "@/src/components/BrandLogo";
+import Animated, { ZoomIn, FadeInUp } from "react-native-reanimated";
 import { colors, useTheme, loadThemePreference } from "@/src/theme";
 
 LogBox.ignoreAllLogs(true);
@@ -40,11 +41,22 @@ function AuthGate() {
     else if (user && inAuth) router.replace("/(tabs)");
   }, [user, loading, segments, router]);
 
-  if (loading) {
+  const [minSplash, setMinSplash] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setMinSplash(false), 1300);
+    return () => clearTimeout(t);
+  }, []);
+
+  if (loading || minSplash) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center", gap: 24 }}>
-        <BrandLogo size={160} tagline />
-        <ActivityIndicator color={colors.brand} size="small" />
+      <View style={{ flex: 1, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center", gap: 24 }} testID="splash">
+        <Animated.View entering={ZoomIn.duration(700).springify().damping(14)}>
+          <BrandLogo size={170} />
+        </Animated.View>
+        <Animated.View entering={FadeInUp.delay(450).duration(600)} style={{ alignItems: "center", gap: 16 }}>
+          <BrandLogo size={0} tagline />
+          <ActivityIndicator color={colors.brand} size="small" />
+        </Animated.View>
       </View>
     );
   }
@@ -58,6 +70,7 @@ function AuthGate() {
       <Stack.Screen name="settings" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
       <Stack.Screen name="photos" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
       <Stack.Screen name="favorites" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
+      <Stack.Screen name="batch" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
     </Stack>
   );
 }

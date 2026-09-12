@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { View, Text, Pressable, ScrollView, ActivityIndicator, Alert } from "react-native";
+import { View, Text, Pressable, ScrollView, ActivityIndicator, Alert, TextInput } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import LucideIcon from "@react-native-vector-icons/lucide";
@@ -56,6 +56,12 @@ const useStyles = makeStyles((colors) => ({
   fab: { position: "absolute", right: 20, bottom: 20, backgroundColor: colors.brandPrimary, borderRadius: 999, paddingHorizontal: 20, paddingVertical: 14, flexDirection: "row", alignItems: "center", gap: 8, shadowColor: "#000", shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 8 },
   fabText: { color: colors.onBrandPrimary, fontWeight: "600", letterSpacing: 0.3 },
   toast: { marginHorizontal: 24, marginBottom: 10, padding: 12, borderRadius: 12, backgroundColor: colors.brandTertiary },
+  searchBox: { marginHorizontal: 24, marginBottom: 12, flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, borderRadius: 999, paddingHorizontal: 14, height: 44 },
+  searchInput: { flex: 1, color: colors.onSurface, fontSize: 14 },
+  resultMeta: { color: colors.warning, fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: "700", paddingHorizontal: 24, marginBottom: 8 },
+  batchChip: { marginHorizontal: 24, marginBottom: 12, flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 14, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border },
+  batchText: { color: colors.onSurface, fontSize: 13, fontWeight: "600" },
+  batchHint: { color: colors.muted, fontSize: 11, marginTop: 1 },
   toastText: { color: colors.onBrandTertiary, fontSize: 12 },
 }));
 
@@ -67,6 +73,8 @@ export default function Planner() {
   const router = useRouter();
   const { program, loading, mealAction, todayIndex, photoUrl } = useProgram();
   const [exporting, setExporting] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const [week, setWeek] = useState(0);
   const [dayIdx, setDayIdx] = useState(todayIndex);
   const [toast, setToast] = useState<string | null>(null);
@@ -107,6 +115,19 @@ export default function Planner() {
     } finally { setExporting(false); }
   };
 
+  const results = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!program || q.length < 2) return [];
+    const out: { week: number; day: number; dayName: string; meal: string; m: any }[] = [];
+    program.weeks.forEach((w, wi) => w.days.forEach((d, di) => MEAL_ORDER.forEach((mk) => {
+      const m = d.meals[mk];
+      if (!m?.recipe) return;
+      const hay = `${m.recipe.name} ${m.components.map((c) => c.food_name).join(" ")}`.toLowerCase();
+      if (hay.includes(q)) out.push({ week: wi, day: di, dayName: d.day, meal: mk, m });
+    })));
+    return out.slice(0, 30);
+  }, [program, query]);
+
   const doneCount = useMemo(() => (weekData ? weekData.days.reduce((n, d) => n + Object.values(d.meals).filter((m) => m.done).length, 0) : 0), [weekData]);
 
   return (
@@ -118,6 +139,11 @@ export default function Planner() {
             <Text style={styles.title}>Mes menus</Text>
           </View>
           <View style={{ flexDirection: "row", gap: 8 }}>
+            {program && (
+              <Pressable testID="search-toggle" onPress={() => { setSearchOpen((o) => !o); setQuery(""); }} style={styles.iconBtn}>
+                <LucideIcon name={searchOpen ? "x" : "search"} size={18} color={themeColors.onSurface} />
+              </Pressable>
+            )}
             {program && (
               <Pressable testID="export-pdf" onPress={exportPdf} disabled={exporting} style={styles.iconBtn}>
                 {exporting ? <ActivityIndicator size="small" color={themeColors.warning} /> : <LucideIcon name="printer" size={18} color={themeColors.onSurface} />}
@@ -162,6 +188,36 @@ export default function Planner() {
         ) : (
           <>
             {toast && <View style={styles.toast}><Text style={styles.toastText}>{toast}</Text></View>}
+            {searchOpen && (
+              <View style={styles.searchBox}>
+                <LucideIcon name="search" size={16} color={themeColors.muted} />
+                <TextInput testID="search-input" autoFocus value={query} onChangeText={setQuery} placeholder="Recette ou ingrédient (ex. saumon, gratin…)" placeholderTextColor={themeColors.muted} style={styles.searchInput} />
+              </View>
+            )}
+            {searchOpen && query.trim().length >= 2 ? (
+              <>
+                <Text style={styles.resultMeta} testID="search-results">{results.length} résultat{results.length > 1 ? "s" : ""} sur tout le programme</Text>
+                {results.map((r, i) => (
+                  <Pressable key={`${r.week}-${r.day}-${r.meal}`} testID={`search-result-${i}`} onPress={() => router.push({ pathname: "/recipe", params: { week: String(r.week), day: String(r.day), meal: r.meal } })} style={styles.row}>
+                    <Image source={photoUrl(r.m.photo) ?? r.m.recipe.image} style={styles.thumb} contentFit="cover" transition={200} />
+                    <View style={styles.rowBody}>
+                      <View style={styles.rowLabel}><Text style={styles.rowLabelText}>S{r.week + 1} · {r.dayName} · {MEAL_LABELS[r.meal]}</Text></View>
+                      <Text style={styles.rowName} numberOfLines={2}>{r.m.recipe.name}</Text>
+                      <Text style={styles.metaText} numberOfLines={1}>{r.m.components.map((c: any) => c.food_name).join(" · ")}</Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </>
+            ) : (
+            <>
+            <Pressable testID="batch-open" onPress={() => router.push({ pathname: "/batch", params: { week: String(week) } })} style={styles.batchChip}>
+              <LucideIcon name="cooking-pot" size={18} color={themeColors.warning} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.batchText}>Batch cooking · semaine {week + 1}</Text>
+                <Text style={styles.batchHint}>Quels plats préparer ensemble pour gagner du temps</Text>
+              </View>
+              <LucideIcon name="chevron-right" size={16} color={themeColors.muted} />
+            </Pressable>
             {featuredMeal?.recipe && (
               <Pressable testID="featured-recipe" onPress={() => router.push({ pathname: "/recipe", params: { week: String(week), day: String(featured!.day), meal: featured!.meal } })} style={styles.featured}>
                 <Text style={{ fontSize: 22 }}>⭐</Text>
@@ -214,6 +270,8 @@ export default function Planner() {
                 </Animated.View>
               );
             })}
+            </>
+            )}
           </>
         )}
       </ScrollView>

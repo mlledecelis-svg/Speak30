@@ -186,3 +186,6 @@ agent_communication:
 
   - agent: "main"
     message: "Itération 5 : Hydratation (GET /api/hydration/today, POST /api/hydration {delta}, PUT /api/hydration/goal {goal 2-20} ; HydrationCard sur Accueil : hydration-plus/minus/goal/count) ; Galerie photos (GET /api/photos ; écran /photos via home-go-photos, photo-tile-i) ; Favoris (GET /api/favorites ; écran /favorites via home-go-favorites, fav-row-i, fav-cook-i) ; Repas extérieur (action 'outside' dans meals/action → meal.outside + done ; recette : outside-toggle → outside-guide → outside-mark). Quick cards Accueil désormais défilantes (Courses, Favoris, Photos, Maison)."
+
+  - agent: "main"
+    message: "Itération 6 : Bilan hebdo (GET /api/programs/{id}/recap/{week} ; WeeklyRecap recap-card sur Accueil) ; Recherche recettes (Menus : search-toggle → search-input, search-results, search-result-i, filtre nom + ingrédients sur toutes les semaines) ; Batch cooking (GET /api/programs/{id}/batch/{week} ; Menus batch-open → écran /batch?week= : batch-hero, sessions, batch-group-<food_id>, batch-close) ; Splash animé (logo ZoomIn + tagline FadeInUp, min 1,3 s, testID splash)."

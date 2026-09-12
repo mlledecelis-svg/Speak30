@@ -19,10 +19,10 @@ export function BrandLogo({ size = 120, tagline = false, style }: { size?: numbe
   const { scheme } = useTheme();
   return (
     <View style={[styles.wrap, style]}>
-      <Image source={scheme === "dark" ? LOGO_LIGHT : LOGO_DARK} style={{ width: size, height: size * 0.876 }} contentFit="contain" transition={200} accessibilityLabel="La Diététique — Aurelia Isnardon" />
+      {size > 0 && <Image source={scheme === "dark" ? LOGO_LIGHT : LOGO_DARK} style={{ width: size, height: size * 0.876 }} contentFit="contain" transition={200} accessibilityLabel="La Diététique — Aurelia Isnardon" />}
       {tagline && (
         <>
-          <Text style={[styles.wordmark, { fontSize: Math.max(11, size * 0.09) }]}>Mon plan alimentaire</Text>
+          <Text style={[styles.wordmark, { fontSize: Math.max(13, size * 0.09) }]}>Mon plan alimentaire</Text>
           <Text style={styles.tagline}>Aurelia Isnardon · depuis 2000</Text>
         </>
       )}

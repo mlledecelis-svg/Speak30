@@ -1,0 +1,43 @@
+{
+  "summary": "Iteration 6 tested end-to-end: weekly recap, batch cooking, planner search and animated splash. Backend: 11/11 new iteration-6 tests + 70/70 regression tests = 81 passed / 1 skipped (pytest_all.xml + pytest_iter6.xml). Recap: GET /api/programs/{id}/recap/0 returns the full 13-field shape {week=1, meals=28, done, progress, outside, favorites, cooked_minutes, shopping_checked, shopping_total, water_avg, water_goal, weight_trend (null or float), tip (French non-empty string)}; after POST /meals/action {action:'done'} on a free meal of week 0, done increments by exactly 1; recap/99 → 404 and unknown program → 404. Batch: GET /api/programs/{id}/batch/0 returns {week=1, groups[], sessions[2], minutes_saved >= 0}; every group has food_id, food_name, category ∈ {starch, protein, vegetables}, total_grams == round(sum meals[].grams), meals.length >= 2, tip non-empty, days list, and food_id is never 'pain_complet' nor 'biscottes'; batch/99 and unknown program → 404. Regression: /programs/current, /programs/{id}/badges, /hydration/today all 200. Frontend (390x844, testuser1@test.fr / testpass123): (1) splash — testID='splash' visible on cold load then removed from DOM (~1.3 s) without JS errors. (2) Accueil — recap-card renders with '📊 Bilan de la semaine', 'Semaine 1', the four stats ('Repas faits 1/28 · 4 %', 'Hydratation 2 verres/jour (obj. 10)', 'Poids — kg', 'Courses 1/58 produits') and the 💡 tip in French. (3) Menus — search-toggle opens search-input, 'riz' → search-results = '13 résultats sur tout le programme' (N=13 ≥ 1), search-result-0 opens /recipe?week=0&day=2&meal=lunch and the recipe body contains 'riz'; back to Menus, typing 'zzzz' → '0 résultat sur tout le programme' displayed; toggling search-toggle again hides search-input and returns the day list. (4) Menus → batch-open navigates to /batch?week=0, batch-hero shows '≈ 136 min' + 'gagnées', 13 batch-group-* items rendered, both 'Dimanche · session 1' and 'Mercredi soir · session 2' visible; batch-close returns to /planner with batch-open still visible. (5) Console: 0 pageerror, 0 console errors (after filtering RN web shadow*/pointerEvents/transform-origin warnings) across the whole flow.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration6.py",
+    "/app/backend/tests/test_iteration5.py",
+    "/app/backend/tests/test_iteration4.py",
+    "/app/backend/tests/test_iteration3.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_iter6.xml",
+    "/app/test_reports/pytest/pytest_all.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py:678-718 weekly_recap iterates weeks[week].days and aggregates meals/done/outside/favs/cooked_minutes cleanly, uses last-7 hydration docs for water_avg, last-6 weights for trend (weights[0]-weights[-1] rounded to 1 dp), and picks tip by progress bucket + optional water/weight amendments — matches spec.",
+    "server.py:728-760 batch_cooking correctly restricts to lunch+dinner components in the {starch, protein, vegetables} categories, blacklists pain_complet/biscottes, keeps only groups with ≥2 meals, rounds total_grams to int and computes minutes_saved = sum((n-1) * (12 if starch else 8)) — the invariants tested (category set, forbidden food_ids, meals.length ≥ 2, total_grams == round(sum grams)) all hold on generated programs.",
+    "WeeklyRecap.tsx:29-33 useEffect refetches when program/week changes and gracefully hides the card on error (setData(null) then early return) — no crash if endpoint fails.",
+    "batch.tsx:66-72 handles the 3 states (loading spinner, empty state, populated) and empty state fallback via .catch on api() prevents the screen from getting stuck on ActivityIndicator when the request errors.",
+    "batch.tsx:100 Pressable on each meal line opens /recipe with week/day/meal params — good deep-link back into the existing recipe flow.",
+    "planner.tsx:118-129 search useMemo trims + lowercases the query, requires ≥2 chars, scans recipe.name + component.food_name, caps at 30 results (good perf guard for a 4-week program with ~112 meals).",
+    "_layout.tsx:44-48 minSplash=1300 ms timer gives the animated logo (BrandLogo + ZoomIn spring + FadeInUp) a stable minimum on-screen time even when auth resolves instantly — matches the '~1,3 s' spec exactly.",
+    "_layout.tsx:20 SplashScreen.preventAutoHideAsync() + line 85 hideAsync() after prewarm ensures a smooth handoff from the native splash to the RN-rendered splash view (no white flash on web).",
+    "server.py:695 shopping_for_week is reused inside recap so shopping_checked/total always match what /shopping/{week} returns on the UI — no risk of the recap card drifting from the Courses screen counters."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration6.py"
+  ],
+  "success_rate": {
+    "backend": "100% (81 passed, 1 skipped across the whole /app/backend/tests suite). Iteration 6 subset: 11/11 green — recap shape+increment+404s, batch shape+invariants+404s, regression current/badges/hydration.",
+    "frontend": "100% for tested flows on 390x844 web preview: splash appears then detaches within ~1.3 s, recap-card renders with all 4 stats + 💡 tip, search 'riz' → 13 résultats with recipe navigation, 'zzzz' → 0 résultat, batch-open → batch-hero (136 min gagnées) + 13 groups + 2 sessions, batch-close returns to Menus. 0 JS pageerror, 0 filtered console error."
+  },
+  "seed_data_creation": "Iteration-6 backend tests self-sign-up disposable users (test_it6_<uuid>@test.fr) — fully isolated. Frontend testing used testuser1@test.fr with the existing program; the flow did not toggle any persistent state (favorites/outside untouched, no meals/action calls fired from the UI part of iteration 6). done counter on Monday breakfast was already at 1 from previous iterations; recap shows done=1/28 · 4 %.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iteration 6 endpoints: GET /api/programs/{pid}/recap/{week} → {week (1-based), meals, done, progress, outside, favorites, cooked_minutes, shopping_checked, shopping_total, water_avg, water_goal, weight_trend (null|float), tip}; GET /api/programs/{pid}/batch/{week} → {week (1-based), groups:[{food_id, food_name, category ∈ {starch,protein,vegetables}, category_label, total_grams (int, == round(Σ meals.grams)), meals:[{day, day_name, meal, meal_label, recipe_name, grams, done}] (len ≥ 2), tip, days}], sessions:[{title, desc, items}] (exactly 2), minutes_saved (int ≥ 0)}. week out-of-range or unknown program → 404. Frontend testIDs (iter6): splash (on root layout during 1300 ms), recap-card + inner stats not testID-tagged but text-searchable (Bilan de la semaine, Repas faits, Hydratation, Poids, Courses, 💡), search-toggle / search-input / search-results / search-result-<i> (planner), batch-open (planner), batch-hero / batch-group-<food_id> / batch-close (batch screen). Note: /badges is NOT a top-level route — the working path is /api/programs/{pid}/badges. HydrationCard goal cycle from iter5 wraps 8→10→12→6 (still valid). Search matches on recipe.name OR component.food_name, cap 30, case-insensitive, requires ≥2 chars.",
+  "rca_of_issue": "N/A — no bug detected in iteration 6 features. All 11 new backend tests passed after fixing a single test-side issue (the request mentioned '/badges' but the API actually exposes '/programs/{pid}/badges'; the test was updated to hit the real endpoint), all frontend flows passed on the first authenticated run, and no JS pageerror / console error was raised across splash → home → planner (search) → recipe → batch → back."
+}

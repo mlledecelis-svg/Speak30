@@ -14,6 +14,7 @@ import { useProgram, MEAL_ORDER, MEAL_LABELS, MEAL_TIMES } from "@/src/program-s
 import { MealCard } from "@/src/components/MealCard";
 import { HydrationCard } from "@/src/components/HydrationCard";
 import { BrandLogo } from "@/src/components/BrandLogo";
+import { WeeklyRecap } from "@/src/components/WeeklyRecap";
 
 const useStyles = makeStyles((colors) => ({
   root: { flex: 1, backgroundColor: colors.surface },
@@ -225,6 +226,8 @@ export default function Home() {
             {active.map((m, i) => (
               <MealCard key={m} meal={day.meals[m]} mealKey={m} week={week} day={todayIndex} isNext={m === nextMeal} index={i} />
             ))}
+
+            <WeeklyRecap week={week} />
 
             {badges && (
               <>

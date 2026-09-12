@@ -87,6 +87,12 @@ Application mobile (Expo React Native) portage de https://elegant-starlight-eebd
 - Assets : `frontend/assets/brand/logo.png` (olive) et `logo-light.png` (crème, thème sombre) ; icône / adaptive icon / favicon / splash régénérés (fond crème #FAF7F0, variante sombre)
 - Composant `BrandLogo` (taille, tagline) : écran de connexion (hero), inscription, chargement, en-tête Accueil, carte « À propos » dans Réglages, en-tête du PDF exporté
 
+## Itération 6 — organisation & motivation (livrée)
+- **Bilan hebdo** (Accueil, `GET /programs/{id}/recap/{week}`) : repas faits, hydratation moyenne, tendance poids, courses, conseil personnalisé
+- **Recherche recettes** (Menus 🔍) : par nom ou ingrédient sur toutes les semaines, ouverture directe de la fiche
+- **Batch cooking** (Menus → carte, écran `/batch`, `GET /programs/{id}/batch/{week}`) : aliments communs à plusieurs repas (quantité totale, repas concernés, conseil de conservation), 2 sessions suggérées, minutes gagnées
+- **Splash animé** : logo (ZoomIn) + signature (FadeInUp), affichage minimum 1,3 s
+
 ## Stack technique
 - Frontend : Expo Router 57, Reanimated 4, gorhom/bottom-sheet, expo-image, expo-linear-gradient, @react-native-vector-icons/lucide, expo-blur
 - Backend : FastAPI, Motor (MongoDB), bcrypt, httpx (Emergent Google Auth)
