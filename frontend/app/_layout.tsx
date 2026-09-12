@@ -12,6 +12,7 @@ import { ErrorBoundary } from "@/src/components/error-boundary";
 import { queryClient } from "@/src/query-client";
 import { AuthProvider, useAuth } from "@/src/auth";
 import { ProgramProvider } from "@/src/program-store";
+import { BrandLogo } from "@/src/components/BrandLogo";
 import { colors, useTheme, loadThemePreference } from "@/src/theme";
 
 LogBox.ignoreAllLogs(true);
@@ -41,8 +42,9 @@ function AuthGate() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator color={colors.brand} size="large" />
+      <View style={{ flex: 1, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center", gap: 24 }}>
+        <BrandLogo size={160} tagline />
+        <ActivityIndicator color={colors.brand} size="small" />
       </View>
     );
   }

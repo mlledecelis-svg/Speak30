@@ -83,6 +83,10 @@ Application mobile (Expo React Native) portage de https://elegant-starlight-eebd
 - **Recettes favorites** (`/favorites`, `GET /favorites`) : liste des coups de cœur du programme actif avec Cuisiner en un geste
 - Accueil : raccourcis défilants Courses / Favoris / Photos / Maison
 
+## Identité visuelle — logo « La Diététique, Aurelia Isnardon » (livré)
+- Assets : `frontend/assets/brand/logo.png` (olive) et `logo-light.png` (crème, thème sombre) ; icône / adaptive icon / favicon / splash régénérés (fond crème #FAF7F0, variante sombre)
+- Composant `BrandLogo` (taille, tagline) : écran de connexion (hero), inscription, chargement, en-tête Accueil, carte « À propos » dans Réglages, en-tête du PDF exporté
+
 ## Stack technique
 - Frontend : Expo Router 57, Reanimated 4, gorhom/bottom-sheet, expo-image, expo-linear-gradient, @react-native-vector-icons/lucide, expo-blur
 - Backend : FastAPI, Motor (MongoDB), bcrypt, httpx (Emergent Google Auth)

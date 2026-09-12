@@ -13,6 +13,7 @@ import { useAuth } from "@/src/auth";
 import { useProgram, MEAL_ORDER, MEAL_LABELS, MEAL_TIMES } from "@/src/program-store";
 import { MealCard } from "@/src/components/MealCard";
 import { HydrationCard } from "@/src/components/HydrationCard";
+import { BrandLogo } from "@/src/components/BrandLogo";
 
 const useStyles = makeStyles((colors) => ({
   root: { flex: 1, backgroundColor: colors.surface },
@@ -127,6 +128,7 @@ export default function Home() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={themeColors.warning} />}
       >
         <View style={styles.header}>
+          <BrandLogo size={56} style={{ marginRight: 12, marginBottom: 2 }} />
           <View style={{ flex: 1 }}>
             <Text style={styles.eyebrow}>Bonjour</Text>
             <Text style={styles.greeting} numberOfLines={1}>{user?.name || "Bienvenue"}</Text>

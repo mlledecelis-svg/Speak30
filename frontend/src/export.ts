@@ -3,6 +3,7 @@ import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import { Program, MEAL_ORDER, MEAL_LABELS } from "./program-store";
 
+const LOGO_URL = "https://customer-assets-39nsmqrw.emergentagent.net/job_food-plan-app-3/artifacts/0t2wa219_logo-olive.webp";
 const esc = (s: string) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 type Shopping = { sections: { name: string; items: any[] }[]; home: any[] } | null;
@@ -36,11 +37,12 @@ h2{font-size:17px;margin:0 0 8px;color:#4E6B4A} .meal{padding:8px 0;border-top:1
 .pb{page-break-before:always;margin-top:8px} .home{background:#E3EEDF;padding:10px 14px;border-radius:10px;font-size:13px;color:#2F4A2C}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px} .ray{background:#fff;border:1px solid #E6E0D2;border-radius:12px;padding:12px 14px;page-break-inside:avoid}
 h3{margin:0 0 6px;font-size:13px;color:#4E6B4A;letter-spacing:1px;text-transform:uppercase} ul{list-style:none;padding:0;margin:0} li{font-size:13px;padding:4px 0;border-top:1px solid #F0EBE0} li b{color:#B08D57} li i{color:#7A8378;font-size:11px}
+.brand{display:flex;align-items:center;gap:16px;margin-bottom:14px} .brand img{width:96px;height:auto}
 .foot{margin-top:18px;font-size:11px;color:#7A8378;text-align:center}
 </style></head><body>
-<h1>Mon plan alimentaire — Semaine ${week.week}</h1><div class="sub">${esc(program.name)} · menus & recettes</div>
+<div class="brand"><img src="${LOGO_URL}" alt="La Diététique — Aurelia Isnardon" /><div><h1>Mon plan alimentaire — Semaine ${week.week}</h1><div class="sub">${esc(program.name)} · menus & recettes · La Diététique, Aurelia Isnardon</div></div></div>
 ${days}${shop}
-<div class="foot">Quantités adaptées au plan alimentaire professionnel · Généré par Mon plan alimentaire</div>
+<div class="foot">Quantités adaptées au plan alimentaire professionnel · La Diététique — Aurelia Isnardon, depuis 2000</div>
 </body></html>`;
 }
 

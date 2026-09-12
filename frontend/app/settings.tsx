@@ -5,6 +5,7 @@ import LucideIcon from "@react-native-vector-icons/lucide";
 
 import { makeStyles, useTheme, setThemePreference, ThemePreference } from "@/src/theme";
 import { useAuth } from "@/src/auth";
+import { BrandLogo } from "@/src/components/BrandLogo";
 
 const useStyles = makeStyles((colors) => ({
   root: { flex: 1, backgroundColor: colors.surface },
@@ -59,6 +60,11 @@ export default function SettingsScreen() {
               {preference === o.key && <LucideIcon name="check" size={16} color={colors.brandPrimary} />}
             </Pressable>
           ))}
+        </View>
+
+        <View style={[styles.card, { alignItems: "center" }]} testID="about-card">
+          <BrandLogo size={150} tagline />
+          <Text style={[styles.cardSub, { textAlign: "center", marginTop: 12, marginBottom: 0 }]}>Application conçue avec La Diététique — Aurelia Isnardon, diététicienne depuis 2000. Des menus fidèles à votre plan, des recettes qui donnent envie.</Text>
         </View>
 
         <View style={styles.card}>

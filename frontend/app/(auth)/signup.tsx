@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import LucideIcon from "@react-native-vector-icons/lucide";
 
 import { makeStyles, colors as themeColors } from "@/src/theme";
+import { BrandLogo } from "@/src/components/BrandLogo";
 import { useAuth } from "@/src/auth";
 
 const useStyles = makeStyles((colors) => ({
@@ -66,6 +67,7 @@ export default function Signup() {
           <Pressable testID="signup-back-button" onPress={() => router.back()} style={styles.back}>
             <LucideIcon name="chevron-left" size={28} color={themeColors.onSurface} />
           </Pressable>
+          <BrandLogo size={110} style={{ alignSelf: "center", marginBottom: 12 }} />
           <Text style={styles.eyebrow}>Nouveau compte</Text>
           <Text style={styles.title}>Créer un compte</Text>
           <Text style={styles.subtitle}>Vos programmes et votre suivi seront sauvegardés dans votre espace personnel.</Text>

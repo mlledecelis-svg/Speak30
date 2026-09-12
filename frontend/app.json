@@ -18,7 +18,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#000000"
+        "backgroundColor": "#FAF7F0"
       },
       "package": "com.emergent.foodplanapp.tnsstl",
       "permissions": [
@@ -36,10 +36,14 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-image.png",
-          "imageWidth": 200,
+          "image": "./assets/brand/logo.png",
+          "imageWidth": 220,
           "resizeMode": "contain",
-          "backgroundColor": "#000000"
+          "backgroundColor": "#FAF7F0",
+          "dark": {
+            "image": "./assets/brand/logo-light.png",
+            "backgroundColor": "#0A0A0A"
+          }
         }
       ],
       "expo-font",

@@ -7,11 +7,13 @@ import LucideIcon from "@react-native-vector-icons/lucide";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { makeStyles, colors as themeColors } from "@/src/theme";
+import { BrandLogo } from "@/src/components/BrandLogo";
 import { useAuth } from "@/src/auth";
 
 const useStyles = makeStyles((colors) => ({
   root: { flex: 1, backgroundColor: colors.surface },
-  hero: { height: 300, width: "100%" },
+  hero: { height: 300, width: "100%", alignItems: "center", justifyContent: "center" },
+  logoWrap: { position: "absolute", top: 0, bottom: 0, left: 0, right: 0, alignItems: "center", justifyContent: "center", paddingTop: 24 },
   heroImg: { width: "100%", height: "100%" },
   scrim: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0 },
   content: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 32 },
@@ -101,10 +103,13 @@ export default function Login() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 32 }} keyboardShouldPersistTaps="handled">
         <View style={styles.hero}>
           <Image source="https://images.unsplash.com/photo-1667499745120-f9bcef8f584e?crop=entropy&cs=srgb&fm=jpg&q=85" style={styles.heroImg} contentFit="cover" />
-          <LinearGradient colors={["transparent", "rgba(250,247,240,0.5)", themeColors.surface]} style={styles.scrim} />
+          <LinearGradient colors={["rgba(250,247,240,0.55)", "rgba(250,247,240,0.85)", themeColors.surface]} style={styles.scrim} />
+          <View style={styles.logoWrap} testID="login-logo">
+            <BrandLogo size={190} />
+          </View>
         </View>
         <View style={styles.content}>
-          <Text style={styles.eyebrow}>Mon plan alimentaire</Text>
+          <Text style={styles.eyebrow}>La Diététique · Aurelia Isnardon</Text>
           <Text style={styles.title}>Bienvenue</Text>
           <Text style={styles.subtitle}>Connectez-vous pour retrouver vos menus, votre suivi et vos programmes.</Text>
 
