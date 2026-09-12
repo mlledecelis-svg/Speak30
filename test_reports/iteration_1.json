@@ -1,0 +1,50 @@
+{
+  "summary": "Iteration 2 comprehensive testing. Backend: 28/30 tests pass (93.3%). Two backend engine bugs found: (1) duplicate protein food_id between lunch/dinner on same day occurs occasionally (spec says never); (2) swap_day returns 400 even when target lunch.items == dinner.items because generated meal component grams differ across equivalences (bread vs pasta scaling), while meal_signature compares actual grams. Frontend: all critical testIDs & flows verified (login, home done-toggle, menus row-replace, recipe modal with all moods/ratings/component-swap, cooking mode, courses shopping toggle, maison pantry-options grouping persistence after reload, config full screen, suivi regression).",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/programs/generate",
+        "issue": "Occasional duplicate protein food_id between lunch and dinner on the same day (e.g. lunch=thon, dinner=thon on day 3 week 1). Spec: 'Verify no duplicate protein food_id between lunch and dinner on the same day'. Root cause in engine.py Ctx.pick(): when fresh candidates list is empty (all in used set) it falls back to full cands allowing duplicates; also with narrow blueprint proteins restriction, dinner falls back to lunch's protein. Reference: /app/backend/engine.py:106 (pool = fresh or cands) and /app/backend/engine.py:257 (protein pick uses day_state).",
+        "priority": "HIGH"
+      },
+      {
+        "endpoint": "POST /api/programs/{id}/meals/action (action=swap_day)",
+        "issue": "Returns 400 'Interversion impossible' even after PUT /api/targets with dinner.items = lunch.items (identical categories AND grams), because engine generates dinner with a different equivalence (e.g. bread grams differ from pasta grams). meal_signature() compares actual component grams which diverge. Reference: /app/backend/engine.py:626 meal_signature and /app/backend/engine.py:640 swap_day. Suggested fix: compare category set only, or compare against target signature instead of generated meal grams.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Fix engine.Ctx.pick to avoid duplicate protein between lunch/dinner (e.g. do NOT fall back to cands for protein when day already used it; try broader options or accept impossibility rather than duplicate).",
+    "Fix swap_day: compare category signature only (categories set) instead of exact grams, OR ensure engine picks equivalences that preserve target grams identically on both meals when can_swap=True, OR base meal_signature on target line (category, grams) instead of derived component grams.",
+    "(Minor) mood 'fresh' replacement may fall back to non-fresh recipe when no compatible recipe exists — acceptable per spec but consider surfacing 'no fresh recipe available' hint in the UI toast."
+  ],
+  "critical_code_review_comments": [
+    "engine.py Ctx.pick falls back to full candidates set when `fresh` (non-used) is empty. For protein especially this permits same food id on lunch+dinner same day.",
+    "swap_day's meal_signature compares actual component grams which are equivalence-dependent (pasta=120g vs bread=40g after convert_grams), making swap_day fail even when target items are identical.",
+    "server.py root '/api/' returns JSON but line 331 has a complex boolean check for current_program that can silently return None if the shape is off — worth adding logging."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py"
+  ],
+  "success_rate": {
+    "backend": "93.3% (28/30) — 2 real engine bugs",
+    "frontend": "100% for tested flows (login, home done toggle, menus tab with replace, recipe modal moods/ratings/component-swap, cooking mode, courses shopping toggle, maison pantry-options + persistence, config screen with all controls, suivi regression)"
+  },
+  "seed_data_creation": "Each backend test class creates its own fresh signup user (test_<uuid>@test.fr). Frontend uses seeded testuser1@test.fr / testpass123. Inventory item 'Courgettes' created & deleted within test flow. Programs auto-generated per test user; leftover programs remain on test users (harmless — will not affect regressions).",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "pytest.ini enforces `-n 2 --dist loadscope`. Cross-class state via pytest.xxx does NOT work — group program-dependent tests inside a single class (see TestFullFlow) that shares state via classmethod cached auth headers. Frontend tab clicks via `text=Menus` may not navigate on Expo Router web — prefer direct URL navigation to /planner, /shopping, /inventory, /tracker, /config. Home 'S1..S4' chips use testID prefix `today-week-` (not week-chip-). `swap-day` button in planner is conditionally rendered only when program.can_swap=true (i.e. targets lunch.items sig == dinner.items sig). `paste-input`/`paste-analyze` rendered only when method='text'.",
+  "rca_of_issue": "BUG 1 (protein dup): engine.py Ctx.pick line 106 `pool = fresh or cands` — if all candidates are already used, pool falls back to the entire cands list, so lunch's protein can be re-picked for dinner. Reproduction: with default targets duration_weeks=2, generate a program, iterate all days; ~7% of days show lunch.protein food_id == dinner.protein food_id. Mitigation: for protein specifically, if fresh is empty, try widening allowed set (all foods in category matching blueprint) before falling back; if still empty, prefer 'no meal' error over duplicate. BUG 2 (swap_day 400): swap_day (engine.py:640) computes meal_signature (category, actual_grams) which diverges when equivalences use different portion factors (see convert_grams at line 140-144). Reproduction: PUT targets with dinner.items = lunch.items, generate, then POST meals/action swap_day → 400 because e.g. lunch got pasta (120g) and dinner got bread (40g). Mitigation: relax the equality check to category-set-only (both meals have same category composition) OR force same equivalence pick between lunch/dinner when can_swap=true."
+}

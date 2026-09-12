@@ -4,8 +4,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import LucideIcon from "@react-native-vector-icons/lucide";
 import BottomSheet, { BottomSheetView, BottomSheetBackdrop } from "@gorhom/bottom-sheet";
 
+import { useRouter } from "expo-router";
+
 import { makeStyles } from "@/src/theme";
 import { api } from "@/src/api";
+import { useProgram } from "@/src/program-store";
 
 const useStyles = makeStyles((colors) => ({
   root: { flex: 1, backgroundColor: colors.surface },
@@ -37,6 +40,18 @@ const useStyles = makeStyles((colors) => ({
   locTextActive: { color: colors.onBrandTertiary },
   addBtn: { marginHorizontal: 20, backgroundColor: colors.brandPrimary, paddingVertical: 14, borderRadius: 999, alignItems: "center" },
   addBtnText: { color: colors.onBrandPrimary, fontWeight: "600", fontSize: 15 },
+  optCard: { marginHorizontal: 24, marginTop: 8, marginBottom: 16, padding: 14, borderRadius: 16, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border },
+  optRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8 },
+  optLabel: { color: colors.onSurface, fontSize: 14, fontWeight: "500" },
+  optHint: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  switch: { width: 40, height: 24, borderRadius: 999, padding: 2 },
+  knob: { width: 20, height: 20, borderRadius: 999, backgroundColor: colors.onSurface },
+  groupTitle: { color: colors.warning, fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", marginTop: 10, marginBottom: 8, fontWeight: "600" },
+  groupChoice: { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 8, backgroundColor: colors.surfaceTertiary },
+  groupChoiceOn: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
+  usage: { color: colors.onSurfaceTertiary, fontSize: 12, lineHeight: 18, marginTop: 10 },
+  linkBtn: { marginTop: 10, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6 },
+  linkText: { color: colors.warning, fontSize: 13, fontWeight: "600" },
 }));
 
 const LOCATIONS = [
@@ -55,15 +70,33 @@ export default function Inventory() {
   const [name, setName] = useState("");
   const [addLoc, setAddLoc] = useState<string>("fridge");
   const [busy, setBusy] = useState(false);
+  const [rules, setRules] = useState<any>(null);
+  const [targets, setTargets] = useState<any>(null);
+  const router = useRouter();
+  const { program } = useProgram();
 
   const load = useCallback(async () => {
     try {
-      const list = await api<any[]>("/inventory");
+      const [list, t] = await Promise.all([api<any[]>("/inventory"), api<any>("/targets").catch(() => null)]);
       setItems(list);
+      if (t) { setTargets(t); setRules(t.rules); }
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const updateRules = async (patch: any) => {
+    const next = { ...rules, ...patch };
+    setRules(next);
+    if (targets) { try { await api("/targets", { method: "PUT", body: JSON.stringify({ ...targets, rules: next }) }); } catch {} }
+  };
+
+  const usage = useMemo(() => {
+    if (!program) return null;
+    let meals = 0; let withHome = 0;
+    for (const w of program.weeks) for (const d of w.days) for (const m of Object.values(d.meals)) { meals++; if (m.pantry_used.length) withHome++; }
+    return { meals, withHome };
+  }, [program]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -97,7 +130,7 @@ export default function Inventory() {
       <ScrollView contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: 120 }} showsVerticalScrollIndicator={false} stickyHeaderIndices={[1]}>
         <View style={styles.header}>
           <Text style={styles.eyebrow}>Ma maison</Text>
-          <Text style={styles.title}>Ce que j'ai déjà</Text>
+          <Text style={styles.title}>Ce que j’ai déjà</Text>
           <Text style={styles.subtitle}>Les aliments prioritaires ⚡ seront utilisés en premier dans vos menus.</Text>
         </View>
 
@@ -111,6 +144,43 @@ export default function Inventory() {
             ))}
           </ScrollView>
         </View>
+
+        {rules && (
+          <View style={styles.optCard} testID="pantry-options">
+            <Pressable testID="pantry-priority-toggle" onPress={() => updateRules({ pantry_priority: !rules.pantry_priority })} style={styles.optRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.optLabel}>Utiliser en priorité ce que j’ai</Text>
+                <Text style={styles.optHint}>Appuyez sur ⚡ pour marquer un aliment à utiliser d’urgence.</Text>
+              </View>
+              <View style={[styles.switch, { backgroundColor: rules.pantry_priority ? "#4E6B4A" : "#292929" }]}>
+                <View style={[styles.knob, { marginLeft: rules.pantry_priority ? 16 : 0 }]} />
+              </View>
+            </Pressable>
+            <Text style={styles.groupTitle}>Comment utiliser mes aliments ?</Text>
+            {[
+              { key: "together", icon: "utensils", title: "Aliments à manger ensemble", hint: "Regrouper les aliments compatibles dans un même repas (ex. poulet + riz + courgettes)." },
+              { key: "separate", icon: "move-horizontal", title: "Aliments à manger séparément", hint: "Répartir les aliments sur plusieurs repas et éviter de les regrouper." },
+            ].map((g) => (
+              <Pressable key={g.key} testID={`pantry-grouping-${g.key}`} onPress={() => updateRules({ pantry_grouping: g.key })} style={[styles.groupChoice, rules.pantry_grouping === g.key && styles.groupChoiceOn]}>
+                <LucideIcon name={g.icon as any} size={16} color={rules.pantry_grouping === g.key ? "#DDEED9" : "#8A8A8A"} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.optLabel}>{g.title}</Text>
+                  <Text style={styles.optHint}>{g.hint}</Text>
+                </View>
+              </Pressable>
+            ))}
+            <Text style={styles.usage}>
+              💡 Le stock est réparti automatiquement dans des repas compatibles lors de la génération. Maison ne régénère jamais le plan toute seule.
+              {usage ? ` Actuellement : ${usage.withHome} repas sur ${usage.meals} utilisent un aliment de chez vous.` : ""}
+            </Text>
+            {program && (
+              <Pressable testID="pantry-go-menus" onPress={() => router.push("/(tabs)/planner")} style={styles.linkBtn}>
+                <Text style={styles.linkText}>Voir mes menus</Text>
+                <LucideIcon name="arrow-right" size={14} color="#B08D57" />
+              </Pressable>
+            )}
+          </View>
+        )}
 
         {loading ? (
           <ActivityIndicator color="#B08D57" style={{ marginTop: 40 }} />

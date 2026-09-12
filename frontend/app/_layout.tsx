@@ -11,6 +11,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { ErrorBoundary } from "@/src/components/error-boundary";
 import { queryClient } from "@/src/query-client";
 import { AuthProvider, useAuth } from "@/src/auth";
+import { ProgramProvider } from "@/src/program-store";
 import { colors } from "@/src/theme";
 
 LogBox.ignoreAllLogs(true);
@@ -45,7 +46,15 @@ function AuthGate() {
       </View>
     );
   }
-  return <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface } }} />;
+  return (
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface } }}>
+      <Stack.Screen name="(auth)" />
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="recipe" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
+      <Stack.Screen name="cooking" options={{ presentation: "fullScreenModal", animation: "slide_from_bottom" }} />
+      <Stack.Screen name="config" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
+    </Stack>
+  );
 }
 
 export default function RootLayout() {
@@ -69,8 +78,10 @@ export default function RootLayout() {
         <SafeAreaProvider>
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
-              <StatusBar style="light" />
-              <AuthGate />
+              <ProgramProvider>
+                <StatusBar style="light" />
+                <AuthGate />
+              </ProgramProvider>
             </AuthProvider>
           </QueryClientProvider>
         </SafeAreaProvider>

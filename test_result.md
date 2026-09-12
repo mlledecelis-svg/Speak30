@@ -101,3 +101,76 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+user_problem_statement: "Mon plan alimentaire (Expo + FastAPI). Itération 2 : reproduire fidèlement le site https://elegant-starlight-eebd4c.netlify.app — moteur de recettes (≈75 recettes types, étapes, temps, difficulté), liste de courses auto-générée par semaine et par rayon, mode cuisine, changer le repas / version rapide / envies, interversion déjeuner-dîner, favoris & avis, repas fait, priorité aux aliments Maison, coller texte du planning, règles pro, exclusions, historique des programmes."
+
+backend:
+  - task: "GET /api/library + GET/PUT /api/targets (nouvelle structure breakfast.savory/sweet_cereal/sweet_bread + items {category, ref, options, grams}, rules)"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py, backend/foods.py"
+  - task: "POST /api/targets/parse-text (analyse texte collé)"
+    implemented: true
+    working: "NA"
+    file: "backend/engine.py"
+  - task: "POST /api/programs/generate — meals = {recipe{name,steps,minutes,difficulty,image,quick,moods}, components[], pantry_used, done, favorite, rating}; weeks[].featured; can_swap"
+    implemented: true
+    working: "NA"
+    file: "backend/engine.py, backend/recipes.py"
+  - task: "GET /api/programs/{id}/shopping/{week} + POST /shopping/toggle (sections par rayon, raw_grams, units, home list, progress)"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+  - task: "POST /api/programs/{id}/meals/action (replace, quick, replace_component, done, favorite, rating, swap_day, mood)"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+  - task: "GET /api/programs, POST /programs/{id}/activate, DELETE, GET /preferences"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+
+frontend:
+  - task: "Accueil Aujourd'hui (hero, progression, cartes repas MealCard, Cuisiner/Fait, sélecteur semaine)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/(tabs)/index.tsx, frontend/src/components/MealCard.tsx"
+  - task: "Menus (semaine/jour, lignes repas avec image, ✓ fait, 🔄 changer, ⇄ déjeuner/dîner, recette de la semaine)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/(tabs)/planner.tsx"
+  - task: "Courses (onglet, semaine, progression, déjà à la maison, rayons, cases à cocher)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/(tabs)/shopping.tsx"
+  - task: "Fiche recette modal (/recipe) : ingrédients + swap composant, étapes, mode cuisine, changer, pas le temps, envies, favori, avis, fait"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/recipe.tsx"
+  - task: "Mode cuisine (/cooking) étapes cochables + Repas terminé"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/cooking.tsx"
+  - task: "Config cibles (/config) : saisie / coller texte, variantes petit-déj, 3 trames, steppers, chips aliment de référence, réinitialiser, copier déjeuner, collation active, règles pro, exclusions, durée, générer, historique"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/config.tsx"
+  - task: "Maison : options priorité / regroupement (rules.pantry_priority, pantry_grouping)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/(tabs)/inventory.tsx"
+
+metadata:
+  created_by: "main_agent"
+  version: "2.0"
+  test_sequence: 2
+
+test_plan:
+  current_focus:
+    - "Backend: génération, courses, actions repas, parse-text"
+    - "Frontend: flux complet config → génération → menus → recette → mode cuisine → courses"
+  stuck_tasks: []
+  test_all: true
+
+agent_communication:
+  - agent: "main"
+    message: "Itération 2 complète. Credentials dans /app/memory/test_credentials.md (testuser1@test.fr / testpass123). Le programme existant de l'utilisateur test a déjà été régénéré au nouveau format. Web preview : les images Unsplash peuvent être lentes."

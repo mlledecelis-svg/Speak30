@@ -8,6 +8,8 @@ import random
 import uuid
 import httpx
 import bcrypt
+from foods import library_payload, DEFAULT_PROGRAM
+from engine import (generate_plan, shopping_for_week, replace_meal, replace_component, swap_day, can_swap, parse_program_text, normalize_program, MOODS)
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Dict, Any
@@ -56,37 +58,6 @@ class SessionIn(BaseModel):
 class AuthOut(BaseModel):
     session_token: str
     user: User
-
-
-class FoodItem(BaseModel):
-    category: str
-    label: str
-    grams: int = 0
-
-
-class MealConfig(BaseModel):
-    active: bool = True
-    variant: Optional[str] = None  # For breakfast: 'salted', 'sweet_cereal', 'sweet_bread', 'both'
-    items: List[FoodItem] = []
-
-
-class RulesConfig(BaseModel):
-    max_fruits_per_day: int = 3
-    max_cheese_per_day: int = 1
-    max_cheese_per_week: int = 4
-    max_sweet_morning: int = 1
-    no_double_starch: bool = True
-    allow_lunch_dinner_swap: bool = True
-    exclusions: List[str] = []
-
-
-class TargetsIn(BaseModel):
-    breakfast: MealConfig
-    lunch: MealConfig
-    snack: MealConfig
-    dinner: MealConfig
-    rules: RulesConfig
-    duration_weeks: int = 4
 
 
 class WeightEntry(BaseModel):
@@ -243,203 +214,217 @@ async def logout(authorization: Optional[str] = Header(None)):
 
 
 # ---------------------------------------------------------------------------
-# Targets
+# Library, Targets (programme professionnel), préférences
 # ---------------------------------------------------------------------------
-DEFAULT_TARGETS = {
-    "breakfast": {
-        "active": True,
-        "variant": "both",
-        "items": [
-            {"category": "Féculents", "label": "Pain complet / biscottes", "grams": 60},
-            {"category": "Laitages", "label": "Yaourt / fromage blanc", "grams": 125},
-            {"category": "Protéines", "label": "Œufs / jambon", "grams": 50},
-            {"category": "Fruits", "label": "Fruit / compote", "grams": 100},
-            {"category": "Matières grasses", "label": "Beurre / purée d'oléagineux", "grams": 10},
-            {"category": "Produits sucrés", "label": "Miel / confiture", "grams": 15},
-        ],
-    },
-    "lunch": {
-        "active": True,
-        "variant": None,
-        "items": [
-            {"category": "Protéines", "label": "Viandes / poissons / œufs", "grams": 130},
-            {"category": "Légumes", "label": "Légumes variés", "grams": 250},
-            {"category": "Féculents cuits", "label": "Riz / pâtes / quinoa", "grams": 180},
-            {"category": "Matières grasses", "label": "Huile / beurre", "grams": 15},
-            {"category": "Laitages", "label": "Yaourt / fromage", "grams": 100},
-            {"category": "Fruits", "label": "Fruit / compote", "grams": 120},
-        ],
-    },
-    "snack": {
-        "active": True,
-        "variant": None,
-        "items": [
-            {"category": "Fruits", "label": "Fruit", "grams": 120},
-            {"category": "Fruits oléagineux", "label": "Amandes / noix", "grams": 20},
-            {"category": "Chocolat", "label": "Chocolat noir 70%", "grams": 15},
-        ],
-    },
-    "dinner": {
-        "active": True,
-        "variant": None,
-        "items": [
-            {"category": "Protéines", "label": "Viandes / poissons / œufs", "grams": 120},
-            {"category": "Légumes", "label": "Légumes variés", "grams": 250},
-            {"category": "Féculents cuits", "label": "Riz / pâtes / quinoa", "grams": 150},
-            {"category": "Matières grasses", "label": "Huile / beurre", "grams": 15},
-            {"category": "Laitages", "label": "Yaourt / fromage", "grams": 100},
-            {"category": "Fruits", "label": "Fruit / compote", "grams": 120},
-        ],
-    },
-    "rules": {
-        "max_fruits_per_day": 3,
-        "max_cheese_per_day": 1,
-        "max_cheese_per_week": 4,
-        "max_sweet_morning": 1,
-        "no_double_starch": True,
-        "allow_lunch_dinner_swap": True,
-        "exclusions": [],
-    },
-    "duration_weeks": 4,
-}
+class TextIn(BaseModel):
+    text: str
+
+
+class MealActionIn(BaseModel):
+    week: int
+    day: int
+    meal: str
+    action: str  # replace | quick | done | favorite | rating | swap_day | replace_component
+    value: Optional[Any] = None
+    mood: Optional[str] = None
+
+
+class ShoppingToggleIn(BaseModel):
+    key: str
+    checked: bool
+
+
+def _serialize(doc: Dict[str, Any]) -> Dict[str, Any]:
+    doc.pop("_id", None)
+    for k in ("created_at", "updated_at"):
+        if isinstance(doc.get(k), datetime):
+            doc[k] = doc[k].isoformat()
+    return doc
+
+
+async def _pantry(user_id: str) -> List[Dict[str, Any]]:
+    return await db.inventory.find({"user_id": user_id}, {"_id": 0}).to_list(500)
+
+
+async def _prefs(user_id: str) -> Dict[str, Any]:
+    return (await db.preferences.find_one({"user_id": user_id}, {"_id": 0})) or {"favorites": [], "avoid": []}
+
+
+async def _targets(user_id: str) -> Dict[str, Any]:
+    doc = await db.targets.find_one({"user_id": user_id}, {"_id": 0, "user_id": 0, "updated_at": 0})
+    return normalize_program(doc)
+
+
+@api_router.get("/library")
+async def get_library():
+    return {**library_payload(), "moods": MOODS}
 
 
 @api_router.get("/targets")
 async def get_targets(user: User = Depends(get_current_user)):
-    doc = await db.targets.find_one({"user_id": user.user_id}, {"_id": 0, "user_id": 0})
-    if not doc:
-        return DEFAULT_TARGETS
-    return doc
+    return await _targets(user.user_id)
 
 
 @api_router.put("/targets")
-async def put_targets(payload: TargetsIn, user: User = Depends(get_current_user)):
-    doc = payload.model_dump()
+async def put_targets(payload: Dict[str, Any], user: User = Depends(get_current_user)):
+    doc = normalize_program(payload)
     doc["user_id"] = user.user_id
     doc["updated_at"] = datetime.now(timezone.utc)
     await db.targets.update_one({"user_id": user.user_id}, {"$set": doc}, upsert=True)
     return {"ok": True}
 
 
+@api_router.post("/targets/parse-text")
+async def parse_targets_text(payload: TextIn, user: User = Depends(get_current_user)):
+    if not payload.text.strip():
+        raise HTTPException(status_code=400, detail="Collez d'abord le texte du programme")
+    current = await _targets(user.user_id)
+    updated, count = parse_program_text(payload.text, current)
+    return {"targets": updated, "updates": count}
+
+
+@api_router.get("/preferences")
+async def get_preferences(user: User = Depends(get_current_user)):
+    return await _prefs(user.user_id)
+
+
 # ---------------------------------------------------------------------------
-# Menu Generation
+# Programmes
 # ---------------------------------------------------------------------------
-FOOD_BANK = {
-    "Féculents": ["Pain complet", "Biscottes", "Muffin anglais", "Pain aux céréales"],
-    "Féculents cuits": ["Riz complet", "Pâtes complètes", "Quinoa", "Boulgour", "Semoule", "Pommes de terre", "Patate douce", "Lentilles", "Pois chiches", "Haricots rouges", "Gnocchis"],
-    "Laitages": ["Yaourt nature", "Fromage blanc", "Skyr", "Fromage (comté)", "Fromage frais", "Lait demi-écrémé"],
-    "Protéines": ["Poulet", "Dinde", "Bœuf maigre", "Cabillaud", "Saumon", "Œufs", "Sardines", "Tofu", "Tempeh", "Crevettes"],
-    "Légumes": ["Courgettes", "Épinards", "Brocolis", "Carottes", "Poivrons", "Haricots verts", "Aubergines", "Salade verte", "Tomates", "Champignons"],
-    "Matières grasses": ["Huile d'olive", "Huile de colza", "Beurre", "Purée d'amandes"],
-    "Fruits": ["Pomme", "Banane", "Orange", "Kiwi", "Poire", "Fraises", "Framboises", "Myrtilles", "Compote pomme", "Ananas"],
-    "Produits sucrés": ["Miel", "Confiture", "Pâte à tartiner"],
-    "Fruits oléagineux": ["Amandes", "Noix", "Noisettes", "Noix de cajou"],
-    "Chocolat": ["Chocolat noir 70%"],
-}
-
-MEAL_ORDER = ["breakfast", "lunch", "snack", "dinner"]
-MEAL_LABELS = {"breakfast": "Petit-déjeuner", "lunch": "Déjeuner", "snack": "Collation", "dinner": "Dîner"}
-DAY_LABELS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
-
-
-def _pick_food(category: str, exclusions: List[str], seed: random.Random) -> str:
-    pool = FOOD_BANK.get(category, [])
-    pool = [p for p in pool if p.lower() not in [e.lower() for e in exclusions]]
-    if not pool:
-        pool = FOOD_BANK.get(category, [category])
-    return seed.choice(pool)
-
-
-def _build_meal(meal_cfg: Dict[str, Any], exclusions: List[str], seed: random.Random) -> List[Dict[str, Any]]:
-    items = []
-    for it in meal_cfg.get("items", []):
-        if it["grams"] <= 0:
-            continue
-        items.append({
-            "category": it["category"],
-            "food": _pick_food(it["category"], exclusions, seed),
-            "grams": it["grams"],
-        })
-    return items
+async def _program(program_id: str, user_id: str) -> Dict[str, Any]:
+    doc = await db.programs.find_one({"id": program_id, "user_id": user_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Programme introuvable")
+    return doc
 
 
 @api_router.post("/programs/generate")
 async def generate_program(user: User = Depends(get_current_user)):
-    tgt_doc = await db.targets.find_one({"user_id": user.user_id}, {"_id": 0, "user_id": 0})
-    tgt = tgt_doc or DEFAULT_TARGETS
-    weeks = int(tgt.get("duration_weeks", 4))
-    exclusions = tgt.get("rules", {}).get("exclusions", [])
-    seed = random.Random(f"{user.user_id}-{datetime.now(timezone.utc).timestamp()}")
-
-    plan_weeks = []
-    for w in range(weeks):
-        days = []
-        for d in range(7):
-            meals = {}
-            for m in MEAL_ORDER:
-                cfg = tgt.get(m, {})
-                if not cfg.get("active", True):
-                    continue
-                meals[m] = _build_meal(cfg, exclusions, seed)
-            days.append({"day": DAY_LABELS[d], "meals": meals})
-        plan_weeks.append({"week": w + 1, "days": days})
-
-    # Shopping list aggregation for week 1
-    shopping = {}
-    for day in plan_weeks[0]["days"]:
-        for meal in day["meals"].values():
-            for item in meal:
-                key = item["food"]
-                shopping[key] = shopping.get(key, 0) + item["grams"]
-
+    tgt = await _targets(user.user_id)
+    pantry = await _pantry(user.user_id)
+    prefs = await _prefs(user.user_id)
+    seed = int(datetime.now(timezone.utc).timestamp() * 1000) % 2147483647
+    weeks = generate_plan(tgt, pantry, prefs, seed)
+    now = datetime.now(timezone.utc)
     program = {
-        "id": str(uuid.uuid4()),
-        "user_id": user.user_id,
-        "name": f"Programme du {datetime.now(timezone.utc).strftime('%d/%m/%Y')}",
-        "created_at": datetime.now(timezone.utc),
-        "duration_weeks": weeks,
-        "weeks": plan_weeks,
-        "shopping": [{"food": k, "grams": v} for k, v in shopping.items()],
+        "id": str(uuid.uuid4()), "user_id": user.user_id,
+        "name": f"Programme du {now.strftime('%d/%m/%Y')}",
+        "created_at": now, "duration_weeks": len(weeks), "weeks": weeks,
+        "shopping_checked": [], "active": True, "can_swap": can_swap(tgt), "seed": seed,
     }
+    await db.programs.update_many({"user_id": user.user_id}, {"$set": {"active": False}})
     await db.programs.insert_one(program.copy())
-    program.pop("_id", None)
-    program["created_at"] = program["created_at"].isoformat()
-    return program
+    return _serialize(program)
 
 
 @api_router.get("/programs")
 async def list_programs(user: User = Depends(get_current_user)):
-    docs = await db.programs.find({"user_id": user.user_id}, {"_id": 0, "weeks": 0, "shopping": 0}).sort("created_at", -1).to_list(50)
-    for d in docs:
-        if isinstance(d.get("created_at"), datetime):
-            d["created_at"] = d["created_at"].isoformat()
-    return docs
+    docs = await db.programs.find({"user_id": user.user_id}, {"_id": 0, "weeks": 0, "shopping_checked": 0}).sort("created_at", -1).to_list(50)
+    return [_serialize(d) for d in docs]
 
 
 @api_router.get("/programs/current")
 async def current_program(user: User = Depends(get_current_user)):
-    doc = await db.programs.find_one({"user_id": user.user_id}, {"_id": 0}, sort=[("created_at", -1)])
+    doc = await db.programs.find_one({"user_id": user.user_id, "active": True}, {"_id": 0})
     if not doc:
+        doc = await db.programs.find_one({"user_id": user.user_id}, {"_id": 0}, sort=[("created_at", -1)])
+    if not doc or "weeks" not in doc or not doc["weeks"] or "meals" not in doc["weeks"][0]["days"][0] or not isinstance(next(iter(doc["weeks"][0]["days"][0]["meals"].values()), {}), dict):
         return None
-    if isinstance(doc.get("created_at"), datetime):
-        doc["created_at"] = doc["created_at"].isoformat()
-    return doc
+    return _serialize(doc)
 
 
 @api_router.get("/programs/{program_id}")
 async def get_program(program_id: str, user: User = Depends(get_current_user)):
-    doc = await db.programs.find_one({"id": program_id, "user_id": user.user_id}, {"_id": 0})
-    if not doc:
-        raise HTTPException(status_code=404, detail="Programme introuvable")
-    if isinstance(doc.get("created_at"), datetime):
-        doc["created_at"] = doc["created_at"].isoformat()
-    return doc
+    return _serialize(await _program(program_id, user.user_id))
+
+
+@api_router.post("/programs/{program_id}/activate")
+async def activate_program(program_id: str, user: User = Depends(get_current_user)):
+    await _program(program_id, user.user_id)
+    await db.programs.update_many({"user_id": user.user_id}, {"$set": {"active": False}})
+    await db.programs.update_one({"id": program_id}, {"$set": {"active": True}})
+    return {"ok": True}
 
 
 @api_router.delete("/programs/{program_id}")
 async def delete_program(program_id: str, user: User = Depends(get_current_user)):
     await db.programs.delete_one({"id": program_id, "user_id": user.user_id})
     return {"ok": True}
+
+
+@api_router.get("/programs/{program_id}/shopping/{week}")
+async def get_shopping(program_id: str, week: int, user: User = Depends(get_current_user)):
+    doc = await _program(program_id, user.user_id)
+    if week < 0 or week >= len(doc["weeks"]):
+        raise HTTPException(status_code=404, detail="Semaine introuvable")
+    return shopping_for_week(doc["weeks"][week], await _pantry(user.user_id), doc.get("shopping_checked", []), week)
+
+
+@api_router.post("/programs/{program_id}/shopping/toggle")
+async def toggle_shopping(program_id: str, payload: ShoppingToggleIn, user: User = Depends(get_current_user)):
+    await _program(program_id, user.user_id)
+    op = {"$addToSet": {"shopping_checked": payload.key}} if payload.checked else {"$pull": {"shopping_checked": payload.key}}
+    await db.programs.update_one({"id": program_id}, op)
+    return {"ok": True}
+
+
+@api_router.post("/programs/{program_id}/meals/action")
+async def meal_action(program_id: str, payload: MealActionIn, user: User = Depends(get_current_user)):
+    doc = await _program(program_id, user.user_id)
+    weeks = doc["weeks"]
+    if payload.week < 0 or payload.week >= len(weeks) or payload.day < 0 or payload.day > 6:
+        raise HTTPException(status_code=400, detail="Repas introuvable")
+    week = weeks[payload.week]
+    day = week["days"][payload.day]
+    meal = day["meals"].get(payload.meal)
+    message = None
+    if payload.action == "swap_day":
+        if not can_swap(await _targets(user.user_id)) or not swap_day(day):
+            raise HTTPException(status_code=400, detail="Interversion impossible : les deux repas doivent avoir exactement les mêmes catégories et portions.")
+        message = "Déjeuner et dîner intervertis sans modifier les portions."
+    else:
+        if not meal:
+            raise HTTPException(status_code=404, detail="Repas introuvable")
+        if payload.action == "done":
+            meal["done"] = bool(payload.value) if payload.value is not None else not meal.get("done")
+        elif payload.action == "favorite":
+            meal["favorite"] = not meal.get("favorite")
+            op = "$addToSet" if meal["favorite"] else "$pull"
+            await db.preferences.update_one({"user_id": user.user_id}, {op: {"favorites": meal["recipe"]["blueprint_id"]}}, upsert=True)
+            message = "Coup de cœur enregistré." if meal["favorite"] else "Retiré des favoris."
+        elif payload.action == "rating":
+            rating = payload.value if payload.value in ("like", "neutral", "avoid", None) else None
+            meal["rating"] = rating
+            bp = meal["recipe"]["blueprint_id"]
+            if rating == "avoid":
+                await db.preferences.update_one({"user_id": user.user_id}, {"$addToSet": {"avoid": bp}}, upsert=True)
+            else:
+                await db.preferences.update_one({"user_id": user.user_id}, {"$pull": {"avoid": bp}}, upsert=True)
+            message = "Avis enregistré."
+        elif payload.action in ("replace", "quick"):
+            tgt = await _targets(user.user_id)
+            pantry = await _pantry(user.user_id)
+            prefs = await _prefs(user.user_id)
+            seed = int(datetime.now(timezone.utc).timestamp() * 1000) % 2147483647
+            mood = payload.mood if payload.mood in MOODS else None
+            new_meal = replace_meal(tgt, week, payload.day, payload.meal, pantry, prefs, seed, mood=mood, quick_only=(payload.action == "quick"))
+            if not new_meal:
+                raise HTTPException(status_code=400, detail="Aucune autre proposition compatible trouvée. Le repas initial est conservé.")
+            new_meal["done"] = meal.get("done", False)
+            day["meals"][payload.meal] = new_meal
+            message = "⚡ Version rapide proposée, toujours adaptée à votre plan." if payload.action == "quick" else "🔄 Nouveau repas proposé, toujours adapté à votre plan."
+        elif payload.action == "replace_component":
+            tgt = await _targets(user.user_id)
+            pantry = await _pantry(user.user_id)
+            prefs = await _prefs(user.user_id)
+            seed = int(datetime.now(timezone.utc).timestamp() * 1000) % 2147483647
+            if not replace_component(meal, int(payload.value or 0), tgt, pantry, prefs, seed):
+                raise HTTPException(status_code=400, detail="Aucun équivalent disponible pour cet aliment.")
+            message = "Aliment remplacé par un équivalent, quantité adaptée."
+        else:
+            raise HTTPException(status_code=400, detail="Action inconnue")
+    await db.programs.update_one({"id": program_id}, {"$set": {"weeks": weeks}})
+    return {"ok": True, "message": message, "day": day, "week": payload.week, "day_index": payload.day}
 
 
 # ---------------------------------------------------------------------------

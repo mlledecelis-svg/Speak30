@@ -1,190 +1,125 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, Pressable, ScrollView, ActivityIndicator, TextInput } from "react-native";
+import { useMemo, useState } from "react";
+import { View, Text, Pressable, ScrollView, ActivityIndicator, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import LucideIcon from "@react-native-vector-icons/lucide";
-import BottomSheet, { BottomSheetView, BottomSheetScrollView, BottomSheetBackdrop } from "@gorhom/bottom-sheet";
+import { Image } from "expo-image";
 
-import { makeStyles } from "@/src/theme";
-import { api } from "@/src/api";
+import { makeStyles, colors as themeColors } from "@/src/theme";
+import { useProgram, MEAL_ORDER, MEAL_LABELS, MEAL_ICONS } from "@/src/program-store";
 
 const useStyles = makeStyles((colors) => ({
   root: { flex: 1, backgroundColor: colors.surface },
-  header: { paddingHorizontal: 24, marginBottom: 16 },
+  header: { paddingHorizontal: 24, marginBottom: 12, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" },
   eyebrow: { color: colors.warning, fontSize: 11, letterSpacing: 3, textTransform: "uppercase", marginBottom: 6, fontWeight: "600" },
   title: { color: colors.onSurface, fontSize: 28, fontWeight: "300" },
-  weekChips: { paddingHorizontal: 24, gap: 8, paddingBottom: 8 },
-  weekChip: { paddingHorizontal: 16, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 999, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, flexShrink: 0 },
+  iconBtn: { width: 42, height: 42, borderRadius: 999, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
+  sticky: { backgroundColor: colors.surface, paddingBottom: 4 },
+  weekChips: { paddingHorizontal: 24, gap: 8 },
+  weekChip: { paddingHorizontal: 16, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 999, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border },
   weekChipActive: { backgroundColor: colors.brandTertiary, borderColor: colors.brandPrimary },
   weekChipText: { color: colors.muted, fontSize: 12, fontWeight: "600", letterSpacing: 0.5 },
   weekChipTextActive: { color: colors.onBrandTertiary },
-  chipRow: { height: 56, paddingTop: 10 },
-  dayCard: { marginHorizontal: 24, marginBottom: 12, padding: 16, borderRadius: 16, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border },
-  dayHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
-  dayTitle: { color: colors.onSurface, fontSize: 16, fontWeight: "600" },
-  mealBlock: { marginTop: 8, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.divider },
-  mealLabel: { color: colors.warning, fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 6 },
-  mealItem: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 },
-  mealFood: { color: colors.onSurfaceSecondary, fontSize: 13 },
-  mealGrams: { color: colors.muted, fontSize: 13 },
-  fab: {
-    position: "absolute",
-    right: 20,
-    bottom: 20,
-    backgroundColor: colors.brandPrimary,
-    borderRadius: 999,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    shadowColor: "#000",
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
-  },
-  fabText: { color: colors.onBrandPrimary, fontWeight: "600", letterSpacing: 0.3 },
+  dayChips: { paddingHorizontal: 24, gap: 6, paddingTop: 10 },
+  dayChip: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border },
+  dayChipOn: { backgroundColor: colors.warning, borderColor: colors.warning },
+  dayChipText: { color: colors.muted, fontSize: 12, fontWeight: "600" },
+  dayChipTextOn: { color: colors.onWarning },
+  dayHead: { paddingHorizontal: 24, marginTop: 16, marginBottom: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  dayTitle: { color: colors.onSurface, fontSize: 22, fontWeight: "300" },
+  swapBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, height: 34, borderRadius: 999, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border },
+  swapText: { color: colors.onSurfaceSecondary, fontSize: 12, fontWeight: "600" },
+  row: { marginHorizontal: 24, marginBottom: 10, borderRadius: 16, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, flexDirection: "row", overflow: "hidden" },
+  rowDone: { opacity: 0.55 },
+  thumb: { width: 92, height: "100%", minHeight: 92 },
+  rowBody: { flex: 1, padding: 12 },
+  rowLabel: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
+  rowLabelText: { color: colors.warning, fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: "600" },
+  rowName: { color: colors.onSurface, fontSize: 14, fontWeight: "500", lineHeight: 19 },
+  rowMeta: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6, alignItems: "center" },
+  metaText: { color: colors.muted, fontSize: 11 },
+  homeTag: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: colors.brandTertiary, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999 },
+  homeTagText: { color: colors.onBrandTertiary, fontSize: 10, fontWeight: "600" },
+  rowActions: { justifyContent: "space-between", alignItems: "center", paddingVertical: 10, paddingRight: 10 },
+  smallBtn: { width: 34, height: 34, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceTertiary },
+  smallBtnOn: { backgroundColor: colors.brandPrimary },
+  featured: { marginHorizontal: 24, marginBottom: 12, padding: 14, borderRadius: 16, backgroundColor: colors.brandTertiary, borderWidth: 1, borderColor: colors.brandSecondary, flexDirection: "row", alignItems: "center", gap: 12 },
+  featuredText: { color: colors.onBrandTertiary, fontSize: 12, flex: 1, lineHeight: 17 },
+  featuredTitle: { color: colors.onSurface, fontSize: 13, fontWeight: "600" },
   emptyBox: { marginHorizontal: 24, padding: 24, borderRadius: 20, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, alignItems: "center" },
-  emptyText: { color: colors.muted, fontSize: 13, textAlign: "center", marginTop: 8 },
-
-  sheetTitle: { color: colors.onSurface, fontSize: 22, fontWeight: "300", marginBottom: 8, paddingHorizontal: 20 },
-  sheetSub: { color: colors.muted, fontSize: 13, marginBottom: 20, paddingHorizontal: 20 },
-  section: { paddingHorizontal: 20, marginBottom: 20 },
-  sectionHead: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
-  sectionIcon: { width: 32, height: 32, borderRadius: 999, backgroundColor: colors.brandTertiary, alignItems: "center", justifyContent: "center" },
-  sectionTitle: { color: colors.onSurface, fontSize: 16, fontWeight: "600" },
-  toggleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12, backgroundColor: colors.surfaceTertiary, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 },
-  toggleLabel: { color: colors.onSurfaceSecondary, fontSize: 14 },
-  variantRow: { flexDirection: "row", gap: 8, marginBottom: 12 },
-  variantChip: { paddingHorizontal: 12, height: 32, borderRadius: 999, backgroundColor: colors.surfaceTertiary, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
-  variantChipActive: { backgroundColor: colors.brandTertiary, borderColor: colors.brandPrimary },
-  variantText: { color: colors.muted, fontSize: 12, fontWeight: "500" },
-  variantTextActive: { color: colors.onBrandTertiary },
-  itemRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.divider },
-  itemInfo: { flex: 1 },
-  itemLabel: { color: colors.onSurface, fontSize: 14 },
-  itemCat: { color: colors.muted, fontSize: 11, marginTop: 2 },
-  stepper: { flexDirection: "row", alignItems: "center", gap: 8 },
-  stepBtn: { width: 32, height: 32, borderRadius: 999, backgroundColor: colors.surfaceTertiary, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },
-  stepInput: { color: colors.onSurface, fontSize: 14, minWidth: 52, textAlign: "center", backgroundColor: colors.surfaceTertiary, borderRadius: 8, paddingVertical: 4 },
-  durationRow: { flexDirection: "row", gap: 8, marginBottom: 12 },
-  saveBtn: { margin: 20, backgroundColor: colors.brandPrimary, paddingVertical: 16, borderRadius: 999, alignItems: "center" },
-  saveText: { color: colors.onBrandPrimary, fontWeight: "600", fontSize: 15 },
+  emptyText: { color: colors.muted, fontSize: 13, textAlign: "center", marginTop: 8, lineHeight: 20 },
+  primaryBtn: { marginTop: 18, backgroundColor: colors.brandPrimary, paddingHorizontal: 24, paddingVertical: 14, borderRadius: 999 },
+  primaryText: { color: colors.onBrandPrimary, fontWeight: "600", fontSize: 14 },
+  fab: { position: "absolute", right: 20, bottom: 20, backgroundColor: colors.brandPrimary, borderRadius: 999, paddingHorizontal: 20, paddingVertical: 14, flexDirection: "row", alignItems: "center", gap: 8, shadowColor: "#000", shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 8 },
+  fabText: { color: colors.onBrandPrimary, fontWeight: "600", letterSpacing: 0.3 },
+  toast: { marginHorizontal: 24, marginBottom: 10, padding: 12, borderRadius: 12, backgroundColor: colors.brandTertiary },
+  toastText: { color: colors.onBrandTertiary, fontSize: 12 },
 }));
 
-const MEALS = [
-  { key: "breakfast", label: "Petit-déjeuner", icon: "sunrise" },
-  { key: "lunch", label: "Déjeuner", icon: "sun" },
-  { key: "snack", label: "Collation", icon: "apple" },
-  { key: "dinner", label: "Dîner", icon: "moon" },
-] as const;
-
-const MEAL_LABELS: Record<string, string> = { breakfast: "Petit-déj", lunch: "Déjeuner", snack: "Collation", dinner: "Dîner" };
-const BREAKFAST_VARIANTS = [
-  { key: "both", label: "Les deux" },
-  { key: "sweet_cereal", label: "Sucré" },
-  { key: "salted", label: "Salé" },
-];
-const DURATIONS = [2, 4, 6, 8];
-
-function Stepper({ value, onChange }: { value: number; onChange: (v: number) => void }) {
-  const styles = useStyles();
-  const dec = () => onChange(Math.max(0, value - 10));
-  const inc = () => onChange(value + 10);
-  return (
-    <View style={styles.stepper}>
-      <Pressable testID={`stepper-dec`} onPress={dec} style={styles.stepBtn}>
-        <LucideIcon name="minus" size={14} color="#CCCCCC" />
-      </Pressable>
-      <Text style={styles.stepInput}>{value}g</Text>
-      <Pressable testID={`stepper-inc`} onPress={inc} style={styles.stepBtn}>
-        <LucideIcon name="plus" size={14} color="#CCCCCC" />
-      </Pressable>
-    </View>
-  );
-}
+const DAY_SHORT = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
 export default function Planner() {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
-  const sheetRef = useRef<BottomSheet>(null);
-  const [program, setProgram] = useState<any>(null);
-  const [targets, setTargets] = useState<any>(null);
+  const router = useRouter();
+  const { program, loading, mealAction, todayIndex } = useProgram();
   const [week, setWeek] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [generating, setGenerating] = useState(false);
-
-  const load = useCallback(async () => {
-    try {
-      const [p, t] = await Promise.all([
-        api("/programs/current").catch(() => null),
-        api("/targets"),
-      ]);
-      setProgram(p);
-      setTargets(t);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const openConfig = () => sheetRef.current?.expand();
-
-  const updateItem = (meal: string, idx: number, grams: number) => {
-    setTargets((t: any) => {
-      const copy = { ...t, [meal]: { ...t[meal], items: t[meal].items.map((it: any, i: number) => (i === idx ? { ...it, grams } : it)) } };
-      return copy;
-    });
-  };
-
-  const toggleMeal = (meal: string) => setTargets((t: any) => ({ ...t, [meal]: { ...t[meal], active: !t[meal].active } }));
-  const setBreakfastVariant = (variant: string) => setTargets((t: any) => ({ ...t, breakfast: { ...t.breakfast, variant } }));
-  const setDuration = (d: number) => setTargets((t: any) => ({ ...t, duration_weeks: d }));
-
-  const saveAndGenerate = async () => {
-    if (!targets) return;
-    setSaving(true);
-    setGenerating(true);
-    try {
-      await api("/targets", { method: "PUT", body: JSON.stringify(targets) });
-      const newProg = await api("/programs/generate", { method: "POST" });
-      setProgram(newProg);
-      setWeek(0);
-      sheetRef.current?.close();
-    } catch (e) {
-      console.warn(e);
-    } finally {
-      setSaving(false);
-      setGenerating(false);
-    }
-  };
-
-  const renderBackdrop = useCallback((props: any) => <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.7} />, []);
+  const [dayIdx, setDayIdx] = useState(todayIndex);
+  const [toast, setToast] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const weeks = program?.weeks ?? [];
+  const weekData = weeks[Math.min(week, Math.max(0, weeks.length - 1))];
+  const day = weekData?.days?.[dayIdx];
+  const featured = weekData?.featured;
+  const featuredMeal = featured ? weekData?.days?.[featured.day]?.meals?.[featured.meal] : null;
+
+  const show = (msg: string | null) => {
+    if (!msg) return;
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const run = async (fn: () => Promise<string | null>) => {
+    setBusy(true);
+    try {
+      show(await fn());
+    } catch (e: any) {
+      Alert.alert("Impossible", e?.message ?? "Erreur");
+      show(e?.message ?? "Erreur");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doneCount = useMemo(() => (weekData ? weekData.days.reduce((n, d) => n + Object.values(d.meals).filter((m) => m.done).length, 0) : 0), [weekData]);
 
   return (
     <View style={styles.root}>
-      <ScrollView
-        contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: 120 }}
-        showsVerticalScrollIndicator={false}
-        stickyHeaderIndices={program ? [1] : undefined}
-      >
+      <ScrollView contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: 120 }} showsVerticalScrollIndicator={false} stickyHeaderIndices={program ? [1] : undefined}>
         <View style={styles.header}>
-          <Text style={styles.eyebrow}>Programme</Text>
-          <Text style={styles.title}>Mes menus</Text>
+          <View>
+            <Text style={styles.eyebrow}>Programme</Text>
+            <Text style={styles.title}>Mes menus</Text>
+          </View>
+          <Pressable testID="open-config" onPress={() => router.push("/config")} style={styles.iconBtn}>
+            <LucideIcon name="sliders-horizontal" size={18} color={themeColors.onSurface} />
+          </Pressable>
         </View>
 
         {program && weeks.length > 0 ? (
-          <View style={{ backgroundColor: "#0A0A0A" }}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.weekChips} style={styles.chipRow}>
-              {weeks.map((w: any, i: number) => (
+          <View style={styles.sticky}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.weekChips}>
+              {weeks.map((w, i) => (
                 <Pressable key={i} testID={`week-chip-${i}`} onPress={() => setWeek(i)} style={[styles.weekChip, i === week && styles.weekChipActive]}>
-                  <Text style={[styles.weekChipText, i === week && styles.weekChipTextActive]}>Semaine {i + 1}</Text>
+                  <Text style={[styles.weekChipText, i === week && styles.weekChipTextActive]}>Semaine {w.week}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayChips}>
+              {DAY_SHORT.map((d, i) => (
+                <Pressable key={d} testID={`day-chip-${i}`} onPress={() => setDayIdx(i)} style={[styles.dayChip, i === dayIdx && styles.dayChipOn]}>
+                  <Text style={[styles.dayChipText, i === dayIdx && styles.dayChipTextOn]}>{d}</Text>
                 </Pressable>
               ))}
             </ScrollView>
@@ -192,106 +127,77 @@ export default function Planner() {
         ) : null}
 
         {loading ? (
-          <ActivityIndicator color="#B08D57" style={{ marginTop: 40 }} />
-        ) : !program ? (
+          <ActivityIndicator color={themeColors.warning} style={{ marginTop: 40 }} />
+        ) : !program || !day ? (
           <View style={styles.emptyBox}>
-            <LucideIcon name="chef-hat" size={36} color="#B08D57" />
+            <LucideIcon name="chef-hat" size={36} color={themeColors.warning} />
             <Text style={[styles.title, { fontSize: 18, marginTop: 12 }]}>Aucun menu généré</Text>
-            <Text style={styles.emptyText}>Configurez vos cibles nutritionnelles et lancez la génération de votre programme.</Text>
+            <Text style={styles.emptyText}>Réglez vos cibles (portions prescrites par votre diététicienne) puis lancez la génération de vos menus.</Text>
+            <Pressable testID="planner-cta-config" onPress={() => router.push("/config")} style={styles.primaryBtn}>
+              <Text style={styles.primaryText}>Configurer & générer</Text>
+            </Pressable>
           </View>
         ) : (
-          weeks[week]?.days.map((day: any, i: number) => (
-            <View key={i} style={styles.dayCard} testID={`day-card-${i}`}>
-              <View style={styles.dayHead}>
-                <Text style={styles.dayTitle}>{day.day}</Text>
-              </View>
-              {Object.entries(day.meals).map(([m, items]: any) => (
-                <View key={m} style={styles.mealBlock}>
-                  <Text style={styles.mealLabel}>{MEAL_LABELS[m]}</Text>
-                  {items.map((it: any, k: number) => (
-                    <View key={k} style={styles.mealItem}>
-                      <Text style={styles.mealFood}>{it.food}</Text>
-                      <Text style={styles.mealGrams}>{it.grams}g</Text>
-                    </View>
-                  ))}
+          <>
+            {toast && <View style={styles.toast}><Text style={styles.toastText}>{toast}</Text></View>}
+            {featuredMeal && (
+              <Pressable testID="featured-recipe" onPress={() => router.push({ pathname: "/recipe", params: { week: String(week), day: String(featured!.day), meal: featured!.meal } })} style={styles.featured}>
+                <Text style={{ fontSize: 22 }}>⭐</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.featuredTitle}>Recette de la semaine · {weekData!.days[featured!.day].day}</Text>
+                  <Text style={styles.featuredText} numberOfLines={1}>{featuredMeal.recipe.name}</Text>
                 </View>
-              ))}
+                <Text style={styles.metaText}>{doneCount} repas faits</Text>
+              </Pressable>
+            )}
+            <View style={styles.dayHead}>
+              <Text style={styles.dayTitle}>{day.day}</Text>
+              {program.can_swap && day.meals.lunch && day.meals.dinner && (
+                <Pressable testID="swap-day" disabled={busy} onPress={() => run(() => mealAction(week, dayIdx, "lunch", "swap_day"))} style={styles.swapBtn}>
+                  <LucideIcon name="arrow-left-right" size={13} color={themeColors.onSurfaceSecondary} />
+                  <Text style={styles.swapText}>Déjeuner / dîner</Text>
+                </Pressable>
+              )}
             </View>
-          ))
+            {MEAL_ORDER.filter((m) => day.meals[m]).map((m) => {
+              const meal = day.meals[m];
+              return (
+                <Pressable key={m} testID={`meal-row-${m}`} onPress={() => router.push({ pathname: "/recipe", params: { week: String(week), day: String(dayIdx), meal: m } })} style={[styles.row, meal.done && styles.rowDone]}>
+                  <Image source={meal.recipe.image} style={styles.thumb} contentFit="cover" transition={200} />
+                  <View style={styles.rowBody}>
+                    <View style={styles.rowLabel}>
+                      <LucideIcon name={MEAL_ICONS[m] as any} size={11} color={themeColors.warning} />
+                      <Text style={styles.rowLabelText}>{MEAL_LABELS[m]}</Text>
+                      {meal.favorite && <LucideIcon name="heart" size={11} color={themeColors.warning} />}
+                    </View>
+                    <Text style={styles.rowName} numberOfLines={2}>{meal.recipe.name}</Text>
+                    <View style={styles.rowMeta}>
+                      <Text style={styles.metaText}>⏱ {meal.recipe.minutes} min</Text>
+                      <Text style={styles.metaText}>· {meal.recipe.difficulty_label}</Text>
+                      {meal.pantry_used.length > 0 && (
+                        <View style={styles.homeTag}><LucideIcon name="house" size={9} color={themeColors.onBrandTertiary} /><Text style={styles.homeTagText}>{meal.pantry_used.join(", ")}</Text></View>
+                      )}
+                    </View>
+                  </View>
+                  <View style={styles.rowActions}>
+                    <Pressable testID={`row-done-${m}`} disabled={busy} onPress={() => run(() => mealAction(week, dayIdx, m, "done"))} style={[styles.smallBtn, meal.done && styles.smallBtnOn]}>
+                      <LucideIcon name="check" size={15} color={meal.done ? themeColors.onBrandPrimary : themeColors.muted} />
+                    </Pressable>
+                    <Pressable testID={`row-replace-${m}`} disabled={busy} onPress={() => run(() => mealAction(week, dayIdx, m, "replace"))} style={styles.smallBtn}>
+                      <LucideIcon name="refresh-cw" size={15} color={themeColors.warning} />
+                    </Pressable>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </>
         )}
       </ScrollView>
 
-      <Pressable testID="fab-configure" onPress={openConfig} style={[styles.fab, { bottom: 20 }]}>
-        <LucideIcon name="sliders-horizontal" size={16} color="#F2F2F2" />
-        <Text style={styles.fabText}>{program ? "Reconfigurer" : "Configurer & Générer"}</Text>
+      <Pressable testID="fab-configure" onPress={() => router.push("/config")} style={styles.fab}>
+        <LucideIcon name="sparkles" size={16} color={themeColors.onBrandPrimary} />
+        <Text style={styles.fabText}>{program ? "Nouveau programme" : "Configurer & Générer"}</Text>
       </Pressable>
-
-      <BottomSheet
-        ref={sheetRef}
-        snapPoints={["92%"]}
-        index={-1}
-        enablePanDownToClose
-        backdropComponent={renderBackdrop}
-        backgroundStyle={{ backgroundColor: "#141414" }}
-        handleIndicatorStyle={{ backgroundColor: "#3D3D3D" }}
-      >
-        <BottomSheetScrollView>
-          <Text style={styles.sheetTitle}>Cibles du programme</Text>
-          <Text style={styles.sheetSub}>Réglez les portions par repas (grammes). Une portion à 0 désactive l'aliment.</Text>
-
-          <View style={styles.section}>
-            <View style={styles.sectionHead}>
-              <View style={styles.sectionIcon}><LucideIcon name="calendar-days" size={16} color="#DDEED9" /></View>
-              <Text style={styles.sectionTitle}>Durée du plan</Text>
-            </View>
-            <View style={styles.durationRow}>
-              {DURATIONS.map((d) => (
-                <Pressable key={d} testID={`duration-${d}`} onPress={() => setDuration(d)} style={[styles.variantChip, targets?.duration_weeks === d && styles.variantChipActive]}>
-                  <Text style={[styles.variantText, targets?.duration_weeks === d && styles.variantTextActive]}>{d} sem.</Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-
-          {targets && MEALS.map((meal) => (
-            <View key={meal.key} style={styles.section}>
-              <View style={styles.sectionHead}>
-                <View style={styles.sectionIcon}><LucideIcon name={meal.icon as any} size={16} color="#DDEED9" /></View>
-                <Text style={styles.sectionTitle}>{meal.label}</Text>
-              </View>
-              <Pressable testID={`toggle-${meal.key}`} onPress={() => toggleMeal(meal.key)} style={styles.toggleRow}>
-                <Text style={styles.toggleLabel}>{meal.key === "snack" ? "Collation active" : "Repas actif"}</Text>
-                <View style={{ width: 40, height: 24, borderRadius: 999, backgroundColor: targets[meal.key].active ? "#4E6B4A" : "#292929", padding: 2 }}>
-                  <View style={{ width: 20, height: 20, borderRadius: 999, backgroundColor: "#F2F2F2", marginLeft: targets[meal.key].active ? 16 : 0 }} />
-                </View>
-              </Pressable>
-              {meal.key === "breakfast" && targets.breakfast.active && (
-                <View style={styles.variantRow}>
-                  {BREAKFAST_VARIANTS.map((v) => (
-                    <Pressable key={v.key} testID={`breakfast-variant-${v.key}`} onPress={() => setBreakfastVariant(v.key)} style={[styles.variantChip, targets.breakfast.variant === v.key && styles.variantChipActive]}>
-                      <Text style={[styles.variantText, targets.breakfast.variant === v.key && styles.variantTextActive]}>{v.label}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              )}
-              {targets[meal.key].active && targets[meal.key].items.map((it: any, i: number) => (
-                <View key={i} style={styles.itemRow}>
-                  <View style={styles.itemInfo}>
-                    <Text style={styles.itemLabel}>{it.label}</Text>
-                    <Text style={styles.itemCat}>{it.category}</Text>
-                  </View>
-                  <Stepper value={it.grams} onChange={(v) => updateItem(meal.key, i, v)} />
-                </View>
-              ))}
-            </View>
-          ))}
-
-          <Pressable testID="save-and-generate" onPress={saveAndGenerate} disabled={saving} style={[styles.saveBtn, saving && { opacity: 0.5 }]}>
-            {generating ? <ActivityIndicator color="#F2F2F2" /> : <Text style={styles.saveText}>Générer mes menus</Text>}
-          </Pressable>
-          <View style={{ height: insets.bottom + 20 }} />
-        </BottomSheetScrollView>
-      </BottomSheet>
     </View>
   );
 }

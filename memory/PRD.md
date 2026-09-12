@@ -40,6 +40,29 @@ Application mobile (Expo React Native) portage de https://elegant-starlight-eebd
 - Statistiques : dernière pesée, delta précédente, delta depuis début
 - Historique complet supprimable
 
+## Itération 2 — parité avec le site original (livrée)
+
+### Moteur de recettes (backend `foods.py`, `recipes.py`, `engine.py`)
+- ≈170 aliments (rayon de course, conversion cru/cuit, unités d'achat, saisonnalité des fruits)
+- Équivalences avec conversion par portion (Viandes blanches / rouges / Poissons blancs / gras / Œufs / Crustacés / Tofu…, Féculents cuits / légumineuses / pommes de terre / pain…)
+- ≈75 recettes types (livre pro + modèles adaptatifs : gratin, wok, curry, risotto, bowl, chakchouka, croque, papillote, mijoté… ; porridge, overnight oats, pancakes avoine, smoothie, tartines salées…) avec nom, étapes guidées, temps, difficulté (60 % Facile / 30 % Élaborée / 10 % Créative), image d'ambiance
+- Règles : pas de même protéine déjeuner/dîner, anti-répétition sur la semaine, max fruits/jour, fromage max jour/semaine, produits sucrés max le matin, exclusions (aliment ou famille), priorité aux aliments Maison (⚡ urgent), recette de la semaine
+- Cibles : 3 trames petit-déjeuner (salé / sucré céréales / sucré pain), variante Les deux / Sucré / Salé, aliment de référence par ligne, collation active, copier le déjeuner, réinitialiser, règles pro, durée 2/4/6/8 semaines, coller texte (`POST /targets/parse-text`)
+
+### Courses (onglet dédié)
+- Générées par semaine depuis les menus, groupées par rayon, quantités crues à acheter (+ « pour X g cuits »), unités approximatives (œufs, pots…), bloc « Déjà à la maison » exclu, cases à cocher persistées, barre de progression
+
+### Actions repas (`POST /programs/{id}/meals/action`)
+- ✓ Fait, ❤ Favori, avis (J'ai aimé / Moyen / Pas pour moi → recette évitée), 🔄 Changer le repas, ⚡ Je n'ai pas le temps, envies (frais / réconfort / rapide / végétarien), ↻ remplacer un aliment par un équivalent, ⇄ interversion déjeuner/dîner (si portions identiques)
+
+### Écrans
+- Accueil « Aujourd'hui » : hero, progression des repas faits, « À prévoir », cartes repas illustrées, Cuisiner / Fait
+- Menus : semaine + jour, lignes illustrées, recette de la semaine, ✓ / 🔄, interversion
+- Fiche recette (modal) : Dans votre assiette, Préparation, badges, toutes les actions
+- Mode cuisine (plein écran, écran maintenu allumé) : étapes cochables, Repas terminé
+- Config cibles (modal plein écran) + historique des programmes (charger / supprimer)
+- Maison : options « Utiliser en priorité ce que j'ai » et regroupement ensemble / séparément
+
 ## Stack technique
 - Frontend : Expo Router 57, Reanimated 4, gorhom/bottom-sheet, expo-image, expo-linear-gradient, @react-native-vector-icons/lucide, expo-blur
 - Backend : FastAPI, Motor (MongoDB), bcrypt, httpx (Emergent Google Auth)
@@ -56,7 +79,7 @@ Application mobile (Expo React Native) portage de https://elegant-starlight-eebd
 - Palette Glass/Luxe DARK : `#0A0A0A` (obsidienne), `#4E6B4A` (vert mousse — brand), `#B08D57` (or antique — accent)
 - Typographie native, poids fins pour les titres, uppercase letter-spacing pour les eyebrows
 - Bottom sheets @gorhom/bottom-sheet pour la config lourde
-- 4 onglets bas : Accueil / Menus / Maison / Suivi
+- 5 onglets bas : Accueil / Menus / Courses / Maison / Suivi
 
 ## Business enhancement — Monétisation possible (post-MVP)
 Freemium : 1 programme actif gratuit ; abonnement mensuel pour multi-programmes, export PDF de la semaine, synchronisation cloud multi-appareils et mode partage avec la diététicienne (réduit le friction de re-saisir chez le pro).

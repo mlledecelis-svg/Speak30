@@ -40,6 +40,13 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="shopping"
+        options={{
+          title: "Courses",
+          tabBarIcon: ({ color, size }) => <LucideIcon name="shopping-basket" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="inventory"
         options={{
           title: "Maison",
