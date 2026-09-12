@@ -12,7 +12,7 @@ import { ErrorBoundary } from "@/src/components/error-boundary";
 import { queryClient } from "@/src/query-client";
 import { AuthProvider, useAuth } from "@/src/auth";
 import { ProgramProvider } from "@/src/program-store";
-import { colors } from "@/src/theme";
+import { colors, useTheme, loadThemePreference } from "@/src/theme";
 
 LogBox.ignoreAllLogs(true);
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -53,15 +53,17 @@ function AuthGate() {
       <Stack.Screen name="recipe" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
       <Stack.Screen name="cooking" options={{ presentation: "fullScreenModal", animation: "slide_from_bottom" }} />
       <Stack.Screen name="config" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
+      <Stack.Screen name="settings" options={{ presentation: "modal", animation: "slide_from_bottom" }} />
     </Stack>
   );
 }
 
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
+  const { scheme, colors: c } = useTheme();
 
   const load = useCallback(async () => {
-    await prewarmIcons();
+    await Promise.all([prewarmIcons(), loadThemePreference()]);
     setReady(true);
     SplashScreen.hideAsync().catch(() => {});
   }, []);
@@ -74,12 +76,12 @@ export default function RootLayout() {
 
   return (
     <ErrorBoundary>
-      <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.surface }}>
+      <GestureHandlerRootView style={{ flex: 1, backgroundColor: c.surface }}>
         <SafeAreaProvider>
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
               <ProgramProvider>
-                <StatusBar style="light" />
+                <StatusBar style={scheme === "dark" ? "light" : "dark"} />
                 <AuthGate />
               </ProgramProvider>
             </AuthProvider>

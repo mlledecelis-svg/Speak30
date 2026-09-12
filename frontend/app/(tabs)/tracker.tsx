@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, Pressable, ScrollView, TextInput, ActivityIndicator, Dimensions } from "react-native";
+import { View, Text, Pressable, ScrollView, TextInput, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import LucideIcon from "@react-native-vector-icons/lucide";
 import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from "@gorhom/bottom-sheet";
 
-import { makeStyles } from "@/src/theme";
+import { makeStyles, colors as themeColors } from "@/src/theme";
 import { api } from "@/src/api";
+import { WeightChart } from "@/src/components/WeightChart";
 
 const useStyles = makeStyles((colors) => ({
   root: { flex: 1, backgroundColor: colors.surface },
@@ -23,8 +24,16 @@ const useStyles = makeStyles((colors) => ({
   chartCard: { marginHorizontal: 24, marginBottom: 20, padding: 20, borderRadius: 20, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border },
   chartTitle: { color: colors.onSurface, fontSize: 16, fontWeight: "600", marginBottom: 6 },
   chartSub: { color: colors.muted, fontSize: 12, marginBottom: 20 },
-  chartArea: { height: 160, marginTop: 8, position: "relative", flexDirection: "row", alignItems: "flex-end", gap: 6 },
-  bar: { flex: 1, backgroundColor: colors.brandPrimary, borderRadius: 4 },
+  goalRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.divider },
+  goalInput: { flex: 1, backgroundColor: colors.surfaceTertiary, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 12, height: 40, color: colors.onSurface, fontSize: 14 },
+  goalBtn: { backgroundColor: colors.brandPrimary, paddingHorizontal: 14, height: 40, borderRadius: 999, alignItems: "center", justifyContent: "center" },
+  goalBtnText: { color: colors.onBrandPrimary, fontSize: 12, fontWeight: "600" },
+  milestone: { marginHorizontal: 24, marginBottom: 20, padding: 16, borderRadius: 18, backgroundColor: colors.brandTertiary, borderWidth: 1, borderColor: colors.brandSecondary, flexDirection: "row", alignItems: "center", gap: 14 },
+  milestoneEmoji: { fontSize: 28 },
+  milestoneTitle: { color: colors.onSurface, fontSize: 14, fontWeight: "600" },
+  milestoneText: { color: colors.onBrandTertiary, fontSize: 12, marginTop: 2, lineHeight: 17 },
+  goalTrack: { height: 8, borderRadius: 999, backgroundColor: colors.surfaceSecondary, marginTop: 8 },
+  goalFill: { height: 8, borderRadius: 999, backgroundColor: colors.warning },
   chartEmpty: { color: colors.muted, fontSize: 13, textAlign: "center", paddingVertical: 40 },
 
   sectionTitle: { color: colors.onSurface, fontSize: 18, fontWeight: "300", paddingHorizontal: 24, marginBottom: 12 },
@@ -66,13 +75,28 @@ export default function Tracker() {
   const [activity, setActivity] = useState<number | null>(null);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [goal, setGoal] = useState<number | null>(null);
+  const [goalInput, setGoalInput] = useState("");
+  const [chartWidth, setChartWidth] = useState(0);
 
   const load = useCallback(async () => {
     try {
-      const list = await api<any[]>("/weights");
+      const [list, prefs] = await Promise.all([api<any[]>("/weights"), api<any>("/preferences").catch(() => null)]);
       setWeights(list);
+      const g = prefs?.goal_weight ?? null;
+      setGoal(g);
+      setGoalInput(g ? String(g) : "");
     } finally { setLoading(false); }
   }, []);
+
+  const saveGoal = async () => {
+    const g = goalInput.trim() ? parseFloat(goalInput.replace(",", ".")) : null;
+    if (g !== null && (!g || g < 20 || g > 300)) return;
+    try {
+      await api("/preferences/goal", { method: "PUT", body: JSON.stringify({ goal_weight: g }) });
+      setGoal(g);
+    } catch {}
+  };
 
   useEffect(() => { load(); }, [load]);
 
@@ -83,10 +107,37 @@ export default function Tracker() {
   const deltaTotal = first && last ? (last.weight - first.weight).toFixed(1) : "—";
   const deltaLast = previous && last ? (last.weight - previous.weight).toFixed(1) : "—";
 
-  const chartData = sorted.slice(-12);
-  const max = Math.max(...chartData.map((w) => w.weight), 0);
-  const min = Math.min(...chartData.map((w) => w.weight), max);
-  const range = Math.max(max - min, 1);
+  // Moyenne par semaine (lundi → dimanche) pour lisser la courbe
+  const weekly = useMemo(() => {
+    const buckets = new Map<string, { sum: number; n: number; date: string }>();
+    for (const w of sorted) {
+      const d = new Date(w.date + "T00:00:00");
+      const day = (d.getDay() + 6) % 7;
+      const monday = new Date(d); monday.setDate(d.getDate() - day);
+      const key = monday.toISOString().slice(0, 10);
+      const b = buckets.get(key) ?? { sum: 0, n: 0, date: key };
+      b.sum += w.weight; b.n += 1;
+      buckets.set(key, b);
+    }
+    return [...buckets.values()].sort((a, b) => a.date.localeCompare(b.date)).map((b) => ({ date: b.date, weight: Math.round((b.sum / b.n) * 10) / 10 }));
+  }, [sorted]);
+  const chartData = weekly.slice(-16);
+
+  const milestone = useMemo(() => {
+    if (!first || !last) return null;
+    if (!goal) return { emoji: "🎯", title: "Fixez un objectif", text: "Indiquez votre poids cible ci-dessus : une ligne d'objectif et des encouragements apparaîtront sur la courbe.", pct: 0 };
+    const totalGap = first.weight - goal;
+    const done = first.weight - last.weight;
+    if (Math.abs(totalGap) < 0.05) return { emoji: "✨", title: "Déjà à l'objectif", text: "Votre poids de départ correspond à votre objectif : l'enjeu est la stabilité.", pct: 100 };
+    const pct = Math.max(0, Math.min(100, Math.round((done / totalGap) * 100)));
+    const remaining = Math.abs(last.weight - goal).toFixed(1);
+    if ((totalGap > 0 && last.weight <= goal) || (totalGap < 0 && last.weight >= goal)) return { emoji: "🏆", title: "Objectif atteint !", text: "Bravo, vous y êtes. Gardez le rythme : le programme vous aide maintenant à stabiliser.", pct: 100 };
+    if (pct >= 75) return { emoji: "🔥", title: "Dernière ligne droite", text: `Plus que ${remaining} kg. ${pct} % du chemin parcouru, c'est presque gagné.`, pct };
+    if (pct >= 50) return { emoji: "💪", title: "Plus de la moitié !", text: `${pct} % du chemin parcouru, encore ${remaining} kg. Belle régularité.`, pct };
+    if (pct >= 25) return { emoji: "🌱", title: "Un quart du chemin", text: `${pct} % déjà accompli. Chaque semaine compte, continuez ainsi.`, pct };
+    if (done * Math.sign(totalGap) > 0) return { emoji: "🚀", title: "C'est parti !", text: `Premier progrès enregistré : ${Math.abs(done).toFixed(1)} kg. Encore ${remaining} kg vers l'objectif.`, pct };
+    return { emoji: "🧭", title: "Cap sur l'objectif", text: `Encore ${remaining} kg. Une pesée par semaine suffit pour suivre la tendance.`, pct };
+  }, [first, last, goal]);
 
   const openSheet = () => {
     setDate(new Date().toISOString().slice(0, 10));
@@ -142,24 +193,35 @@ export default function Tracker() {
           </View>
         </View>
 
-        <View style={styles.chartCard}>
-          <Text style={styles.chartTitle}>Ma courbe</Text>
-          <Text style={styles.chartSub}>{chartData.length > 0 ? `${chartData.length} pesées récentes` : "Ajoutez votre première pesée"}</Text>
+        <View style={styles.chartCard} onLayout={(e) => setChartWidth(e.nativeEvent.layout.width - 40)} testID="weight-chart">
+          <Text style={styles.chartTitle}>Ma courbe hebdomadaire</Text>
+          <Text style={styles.chartSub}>{chartData.length > 0 ? `${chartData.length} semaine${chartData.length > 1 ? "s" : ""} de suivi` : "Ajoutez votre première pesée"}</Text>
           {chartData.length === 0 ? (
             <Text style={styles.chartEmpty}>La courbe apparaîtra après vos pesées.</Text>
-          ) : (
-            <View style={styles.chartArea}>
-              {chartData.map((w, i) => {
-                const h = ((w.weight - min) / range) * 140 + 20;
-                return <View key={w.id || i} style={[styles.bar, { height: h }]} />;
-              })}
-            </View>
-          )}
+          ) : chartWidth > 0 ? (
+            <WeightChart data={chartData} goal={goal} width={chartWidth} />
+          ) : null}
+          <View style={styles.goalRow}>
+            <LucideIcon name="target" size={16} color={themeColors.warning} />
+            <TextInput testID="goal-input" value={goalInput} onChangeText={setGoalInput} placeholder="Objectif (kg)" placeholderTextColor={themeColors.muted} keyboardType="decimal-pad" style={styles.goalInput} />
+            <Pressable testID="goal-save" onPress={saveGoal} style={styles.goalBtn}><Text style={styles.goalBtnText}>{goal ? "Mettre à jour" : "Fixer"}</Text></Pressable>
+          </View>
         </View>
+
+        {milestone && (
+          <View style={styles.milestone} testID="milestone-card">
+            <Text style={styles.milestoneEmoji}>{milestone.emoji}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.milestoneTitle}>{milestone.title}</Text>
+              <Text style={styles.milestoneText}>{milestone.text}</Text>
+              {goal ? <View style={styles.goalTrack}><View style={[styles.goalFill, { width: `${milestone.pct}%` }]} /></View> : null}
+            </View>
+          </View>
+        )}
 
         <Text style={styles.sectionTitle}>Mes pesées</Text>
         {loading ? (
-          <ActivityIndicator color="#B08D57" style={{ marginTop: 20 }} />
+          <ActivityIndicator color={themeColors.warning} style={{ marginTop: 20 }} />
         ) : sorted.length === 0 ? (
           <Text style={styles.chartEmpty}>Aucune pesée enregistrée.</Text>
         ) : (
@@ -173,7 +235,7 @@ export default function Tracker() {
                 {w.note ? <Text style={styles.wNote} numberOfLines={2}>{w.note}</Text> : null}
               </View>
               <Pressable testID={`weight-del-${w.id}`} onPress={() => remove(w.id)} style={styles.delBtn}>
-                <LucideIcon name="trash-2" size={16} color="#8A8A8A" />
+                <LucideIcon name="trash-2" size={16} color={themeColors.muted} />
               </Pressable>
             </View>
           ))
@@ -181,23 +243,23 @@ export default function Tracker() {
       </ScrollView>
 
       <Pressable testID="add-weight-fab" onPress={openSheet} style={styles.fab}>
-        <LucideIcon name="plus" size={16} color="#F2F2F2" />
+        <LucideIcon name="plus" size={16} color={themeColors.onBrandPrimary} />
         <Text style={styles.fabText}>Ajouter une pesée</Text>
       </Pressable>
 
-      <BottomSheet ref={sheetRef} snapPoints={["85%"]} index={-1} enablePanDownToClose backdropComponent={renderBackdrop} backgroundStyle={{ backgroundColor: "#141414" }} handleIndicatorStyle={{ backgroundColor: "#3D3D3D" }}>
+      <BottomSheet ref={sheetRef} snapPoints={["85%"]} index={-1} enablePanDownToClose backdropComponent={renderBackdrop} backgroundStyle={{ backgroundColor: themeColors.surfaceSecondary }} handleIndicatorStyle={{ backgroundColor: themeColors.borderStrong }}>
         <BottomSheetScrollView>
           <Text style={styles.sheetTitle}>Nouvelle pesée</Text>
           <Text style={styles.sheetSub}>Ces données ne modifient jamais votre programme.</Text>
 
           <Text style={styles.label}>Date</Text>
-          <TextInput testID="weight-date" value={date} onChangeText={setDate} placeholder="AAAA-MM-JJ" placeholderTextColor="#5A5A5A" style={styles.input} />
+          <TextInput testID="weight-date" value={date} onChangeText={setDate} placeholder="AAAA-MM-JJ" placeholderTextColor={themeColors.muted} style={styles.input} />
 
           <Text style={styles.label}>Poids (kg)</Text>
-          <TextInput testID="weight-kg" value={kg} onChangeText={setKg} placeholder="72.5" placeholderTextColor="#5A5A5A" keyboardType="decimal-pad" style={styles.input} />
+          <TextInput testID="weight-kg" value={kg} onChangeText={setKg} placeholder="72.5" placeholderTextColor={themeColors.muted} keyboardType="decimal-pad" style={styles.input} />
 
           <Text style={styles.label}>Tour de taille (cm) · optionnel</Text>
-          <TextInput testID="weight-waist" value={waist} onChangeText={setWaist} placeholder="80" placeholderTextColor="#5A5A5A" keyboardType="decimal-pad" style={styles.input} />
+          <TextInput testID="weight-waist" value={waist} onChangeText={setWaist} placeholder="80" placeholderTextColor={themeColors.muted} keyboardType="decimal-pad" style={styles.input} />
 
           <Text style={styles.label}>Énergie</Text>
           <View style={styles.scaleRow}>
@@ -225,10 +287,10 @@ export default function Tracker() {
           </View>
 
           <Text style={styles.label}>Note · optionnel</Text>
-          <TextInput testID="weight-note" value={note} onChangeText={setNote} placeholder="Ex : bonne semaine…" placeholderTextColor="#5A5A5A" style={styles.input} />
+          <TextInput testID="weight-note" value={note} onChangeText={setNote} placeholder="Ex : bonne semaine…" placeholderTextColor={themeColors.muted} style={styles.input} />
 
           <Pressable testID="weight-submit" onPress={submit} disabled={busy || !kg} style={[styles.saveBtn, (busy || !kg) && { opacity: 0.5 }]}>
-            {busy ? <ActivityIndicator color="#F2F2F2" /> : <Text style={styles.saveText}>Enregistrer la pesée</Text>}
+            {busy ? <ActivityIndicator color={themeColors.onBrandPrimary} /> : <Text style={styles.saveText}>Enregistrer la pesée</Text>}
           </Pressable>
           <View style={{ height: insets.bottom + 20 }} />
         </BottomSheetScrollView>

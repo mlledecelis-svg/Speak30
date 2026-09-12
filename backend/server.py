@@ -1,4 +1,6 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Header, Depends
+from fastapi import FastAPI, APIRouter, HTTPException, Header, Depends, UploadFile, File, Query
+from fastapi.responses import Response
+from starlette.concurrency import run_in_threadpool
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -9,6 +11,7 @@ import uuid
 import httpx
 import bcrypt
 from foods import library_payload, DEFAULT_PROGRAM
+from storage import init_storage, put_object, get_object, APP_NAME
 from engine import (generate_plan, shopping_for_week, replace_meal, replace_component, swap_day, can_swap, parse_program_text, normalize_program, MOODS)
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
@@ -285,7 +288,41 @@ async def parse_targets_text(payload: TextIn, user: User = Depends(get_current_u
 
 @api_router.get("/preferences")
 async def get_preferences(user: User = Depends(get_current_user)):
-    return await _prefs(user.user_id)
+    p = await _prefs(user.user_id)
+    p.setdefault("notes", {})
+    p.setdefault("goal_weight", None)
+    return p
+
+
+class NoteIn(BaseModel):
+    blueprint_id: str
+    note: str
+
+
+class GoalIn(BaseModel):
+    goal_weight: Optional[float] = None
+
+
+@api_router.put("/preferences/notes")
+async def put_note(payload: NoteIn, user: User = Depends(get_current_user)):
+    bp = payload.blueprint_id.strip()
+    if not bp or len(bp) > 80:
+        raise HTTPException(status_code=400, detail="Recette invalide")
+    note = payload.note.strip()[:1000]
+    if note:
+        await db.preferences.update_one({"user_id": user.user_id}, {"$set": {f"notes.{bp}": note}}, upsert=True)
+    else:
+        await db.preferences.update_one({"user_id": user.user_id}, {"$unset": {f"notes.{bp}": ""}}, upsert=True)
+    return {"ok": True, "note": note}
+
+
+@api_router.put("/preferences/goal")
+async def put_goal(payload: GoalIn, user: User = Depends(get_current_user)):
+    g = payload.goal_weight
+    if g is not None and not (20 <= g <= 300):
+        raise HTTPException(status_code=400, detail="Objectif entre 20 et 300 kg")
+    await db.preferences.update_one({"user_id": user.user_id}, {"$set": {"goal_weight": g}}, upsert=True)
+    return {"ok": True, "goal_weight": g}
 
 
 # ---------------------------------------------------------------------------
@@ -431,6 +468,123 @@ async def meal_action(program_id: str, payload: MealActionIn, user: User = Depen
 
 
 # ---------------------------------------------------------------------------
+# Photos de plats (Emergent Object Storage) & défis
+# ---------------------------------------------------------------------------
+async def _user_from_token(token: Optional[str]) -> Optional[str]:
+    if not token:
+        return None
+    session = await db.user_sessions.find_one({"session_token": token}, {"_id": 0, "user_id": 1})
+    return session["user_id"] if session else None
+
+
+@api_router.post("/programs/{program_id}/meals/photo")
+async def upload_meal_photo(program_id: str, week: int = Query(...), day: int = Query(...), meal: str = Query(...), file: UploadFile = File(...), user: User = Depends(get_current_user)):
+    doc = await _program(program_id, user.user_id)
+    weeks = doc["weeks"]
+    try:
+        target = weeks[week]["days"][day]["meals"][meal]
+    except (IndexError, KeyError):
+        raise HTTPException(status_code=404, detail="Repas introuvable")
+    data = await file.read()
+    if len(data) > 8 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Photo trop lourde (max 8 Mo)")
+    ctype = file.content_type or "image/jpeg"
+    ext = "png" if "png" in ctype else ("webp" if "webp" in ctype else "jpg")
+    path = f"{APP_NAME}/uploads/{user.user_id}/{uuid.uuid4().hex}.{ext}"
+    try:
+        await run_in_threadpool(put_object, path, data, ctype)
+    except PermissionError as e:
+        raise HTTPException(status_code=402, detail=str(e))
+    except Exception as e:
+        logger.warning(f"upload photo: {e}")
+        raise HTTPException(status_code=503, detail="Stockage indisponible, réessayez plus tard.")
+    await db.photos.insert_one({"id": str(uuid.uuid4()), "user_id": user.user_id, "path": path, "content_type": ctype, "created_at": datetime.now(timezone.utc)})
+    target["photo"] = path
+    bp = target["recipe"]["blueprint_id"]
+    await db.preferences.update_one({"user_id": user.user_id}, {"$set": {f"photos.{bp}": path}}, upsert=True)
+    await db.programs.update_one({"id": program_id}, {"$set": {"weeks": weeks}})
+    return {"ok": True, "path": path, "day": weeks[week]["days"][day]}
+
+
+@api_router.delete("/programs/{program_id}/meals/photo")
+async def remove_meal_photo(program_id: str, week: int = Query(...), day: int = Query(...), meal: str = Query(...), user: User = Depends(get_current_user)):
+    doc = await _program(program_id, user.user_id)
+    weeks = doc["weeks"]
+    try:
+        target = weeks[week]["days"][day]["meals"][meal]
+    except (IndexError, KeyError):
+        raise HTTPException(status_code=404, detail="Repas introuvable")
+    target.pop("photo", None)
+    await db.programs.update_one({"id": program_id}, {"$set": {"weeks": weeks}})
+    return {"ok": True, "day": weeks[week]["days"][day]}
+
+
+@api_router.get("/files/{path:path}")
+async def get_file(path: str, token: Optional[str] = Query(None), authorization: Optional[str] = Header(None)):
+    user_id = await _user_from_token(token or (authorization.split(" ", 1)[1] if authorization and authorization.startswith("Bearer ") else None))
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Non autorisé")
+    photo = await db.photos.find_one({"path": path, "user_id": user_id}, {"_id": 0})
+    if not photo:
+        raise HTTPException(status_code=404, detail="Photo introuvable")
+    try:
+        content, ctype = await run_in_threadpool(get_object, path)
+    except Exception as e:
+        logger.warning(f"get photo: {e}")
+        raise HTTPException(status_code=503, detail="Stockage indisponible")
+    return Response(content=content, media_type=ctype, headers={"Cache-Control": "private, max-age=86400"})
+
+
+MEAL_TIMES = {"breakfast": (7, 30), "lunch": (12, 30), "snack": (16, 30), "dinner": (19, 30)}
+
+
+@api_router.get("/programs/{program_id}/badges")
+async def get_badges(program_id: str, user: User = Depends(get_current_user)):
+    doc = await _program(program_id, user.user_id)
+    pantry = await _pantry(user.user_id)
+    checked = doc.get("shopping_checked", [])
+    weeks_out = []
+    total_done = 0
+    total_meals = 0
+    distinct_done = set()
+    favorites = 0
+    best_streak = 0
+    streak = 0
+    for wi, week in enumerate(doc["weeks"]):
+        meals = 0
+        done = 0
+        for day in week["days"]:
+            day_meals = list(day["meals"].values())
+            meals += len(day_meals)
+            d = sum(1 for m in day_meals if m.get("done"))
+            done += d
+            for m in day_meals:
+                if m.get("done"):
+                    distinct_done.add(m["recipe"]["blueprint_id"])
+                if m.get("favorite"):
+                    favorites += 1
+            if day_meals and d == len(day_meals):
+                streak += 1
+                best_streak = max(best_streak, streak)
+            else:
+                streak = 0
+        shop = shopping_for_week(week, pantry, checked, wi)
+        weeks_out.append({"week": wi + 1, "meals_done": done, "meals_total": meals, "shopping_checked": shop["checked"], "shopping_total": shop["total"],
+                          "perfect_week": meals > 0 and done == meals, "shopping_complete": shop["total"] > 0 and shop["checked"] == shop["total"]})
+        total_done += done
+        total_meals += meals
+    badges = [
+        {"id": "first_cook", "label": "Première recette", "icon": "chef-hat", "desc": "Cuisiner un premier repas", "earned": total_done >= 1, "progress": min(1, total_done), "target": 1},
+        {"id": "explorer", "label": "Explorateur", "icon": "compass", "desc": "10 recettes différentes réalisées", "earned": len(distinct_done) >= 10, "progress": len(distinct_done), "target": 10},
+        {"id": "streak3", "label": "Série de 3 jours", "icon": "flame", "desc": "3 jours complets d'affilée", "earned": best_streak >= 3, "progress": min(best_streak, 3), "target": 3},
+        {"id": "gourmet", "label": "Gourmet", "icon": "heart", "desc": "3 coups de cœur", "earned": favorites >= 3, "progress": min(favorites, 3), "target": 3},
+        {"id": "shopper", "label": "Courses bouclées", "icon": "shopping-basket", "desc": "Une liste de courses terminée", "earned": any(w["shopping_complete"] for w in weeks_out), "progress": sum(1 for w in weeks_out if w["shopping_complete"]), "target": 1},
+        {"id": "perfect", "label": "Semaine parfaite", "icon": "trophy", "desc": "Tous les repas d'une semaine faits", "earned": any(w["perfect_week"] for w in weeks_out), "progress": sum(1 for w in weeks_out if w["perfect_week"]), "target": 1},
+    ]
+    return {"weeks": weeks_out, "badges": badges, "meals_done": total_done, "meals_total": total_meals, "best_streak": best_streak, "meal_times": MEAL_TIMES}
+
+
+# ---------------------------------------------------------------------------
 # Weight tracking
 # ---------------------------------------------------------------------------
 @api_router.get("/weights")
@@ -526,6 +680,10 @@ async def startup():
         await db.weights.create_index([("user_id", 1), ("date", 1)])
         await db.inventory.create_index([("user_id", 1), ("location", 1)])
         # Nettoyage des programmes de l'ancien format (itération 1), incompatibles avec les fiches recettes
+        try:
+            await run_in_threadpool(init_storage)
+        except Exception as e:
+            logger.warning(f"object storage init: {e}")
         res = await db.programs.delete_many({"shopping_checked": {"$exists": False}})
         if res.deleted_count:
             logger.info(f"programmes ancien format supprimés : {res.deleted_count}")

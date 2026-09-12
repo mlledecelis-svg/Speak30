@@ -9,14 +9,22 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.emergent.foodplanapp.tnsstl"
+      "bundleIdentifier": "com.emergent.foodplanapp.tnsstl",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Photographier vos plats pour illustrer vos recettes",
+        "NSPhotoLibraryUsageDescription": "Choisir une photo de plat pour vos recettes"
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#000000"
       },
-      "package": "com.emergent.foodplanapp.tnsstl"
+      "package": "com.emergent.foodplanapp.tnsstl",
+      "permissions": [
+        "CAMERA",
+        "READ_MEDIA_IMAGES"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -39,7 +47,15 @@
       "expo-secure-store",
       "expo-web-browser",
       "expo-status-bar",
-      "@react-native-vector-icons/lucide"
+      "@react-native-vector-icons/lucide",
+      "expo-sharing",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Choisir une photo de plat pour vos recettes",
+          "cameraPermission": "Photographier vos plats pour illustrer vos recettes"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

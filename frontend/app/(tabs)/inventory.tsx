@@ -6,7 +6,7 @@ import BottomSheet, { BottomSheetView, BottomSheetBackdrop } from "@gorhom/botto
 
 import { useRouter } from "expo-router";
 
-import { makeStyles } from "@/src/theme";
+import { makeStyles, colors as themeColors } from "@/src/theme";
 import { api } from "@/src/api";
 import { useProgram } from "@/src/program-store";
 
@@ -134,11 +134,11 @@ export default function Inventory() {
           <Text style={styles.subtitle}>Les aliments prioritaires ⚡ seront utilisés en premier dans vos menus.</Text>
         </View>
 
-        <View style={{ backgroundColor: "#0A0A0A" }}>
+        <View style={{ backgroundColor: themeColors.surface }}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipContent} style={styles.chipRow}>
             {LOCATIONS.map((l) => (
               <Pressable key={l.key} testID={`loc-chip-${l.key}`} onPress={() => setLoc(l.key)} style={[styles.chip, l.key === loc && styles.chipActive]}>
-                <LucideIcon name={l.icon as any} size={13} color={l.key === loc ? "#DDEED9" : "#8A8A8A"} />
+                <LucideIcon name={l.icon as any} size={13} color={l.key === loc ? themeColors.onBrandTertiary : themeColors.muted} />
                 <Text style={[styles.chipText, l.key === loc && styles.chipTextActive]}>{l.label}</Text>
               </Pressable>
             ))}
@@ -152,7 +152,7 @@ export default function Inventory() {
                 <Text style={styles.optLabel}>Utiliser en priorité ce que j’ai</Text>
                 <Text style={styles.optHint}>Appuyez sur ⚡ pour marquer un aliment à utiliser d’urgence.</Text>
               </View>
-              <View style={[styles.switch, { backgroundColor: rules.pantry_priority ? "#4E6B4A" : "#292929" }]}>
+              <View style={[styles.switch, { backgroundColor: rules.pantry_priority ? themeColors.brandPrimary : themeColors.border }]}>
                 <View style={[styles.knob, { marginLeft: rules.pantry_priority ? 16 : 0 }]} />
               </View>
             </Pressable>
@@ -162,7 +162,7 @@ export default function Inventory() {
               { key: "separate", icon: "move-horizontal", title: "Aliments à manger séparément", hint: "Répartir les aliments sur plusieurs repas et éviter de les regrouper." },
             ].map((g) => (
               <Pressable key={g.key} testID={`pantry-grouping-${g.key}`} onPress={() => updateRules({ pantry_grouping: g.key })} style={[styles.groupChoice, rules.pantry_grouping === g.key && styles.groupChoiceOn]}>
-                <LucideIcon name={g.icon as any} size={16} color={rules.pantry_grouping === g.key ? "#DDEED9" : "#8A8A8A"} />
+                <LucideIcon name={g.icon as any} size={16} color={rules.pantry_grouping === g.key ? themeColors.onBrandTertiary : themeColors.muted} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.optLabel}>{g.title}</Text>
                   <Text style={styles.optHint}>{g.hint}</Text>
@@ -176,17 +176,17 @@ export default function Inventory() {
             {program && (
               <Pressable testID="pantry-go-menus" onPress={() => router.push("/(tabs)/planner")} style={styles.linkBtn}>
                 <Text style={styles.linkText}>Voir mes menus</Text>
-                <LucideIcon name="arrow-right" size={14} color="#B08D57" />
+                <LucideIcon name="arrow-right" size={14} color={themeColors.warning} />
               </Pressable>
             )}
           </View>
         )}
 
         {loading ? (
-          <ActivityIndicator color="#B08D57" style={{ marginTop: 40 }} />
+          <ActivityIndicator color={themeColors.warning} style={{ marginTop: 40 }} />
         ) : filtered.length === 0 ? (
           <View style={styles.emptyBox}>
-            <LucideIcon name="package-open" size={32} color="#B08D57" />
+            <LucideIcon name="package-open" size={32} color={themeColors.warning} />
             <Text style={styles.emptyText}>Aucun aliment ajouté. Appuyez sur + pour ajouter.</Text>
           </View>
         ) : (
@@ -194,10 +194,10 @@ export default function Inventory() {
             <View key={it.id} style={[styles.itemCard, it.priority && styles.itemCardPri]} testID={`inv-item-${it.id}`}>
               <Text style={styles.itemName}>{it.name}</Text>
               <Pressable testID={`inv-priority-${it.id}`} onPress={() => togglePri(it)} style={[styles.priBtn, it.priority && styles.priBtnOn]}>
-                <LucideIcon name="zap" size={16} color={it.priority ? "#0A0A0A" : "#B08D57"} />
+                <LucideIcon name="zap" size={16} color={it.priority ? themeColors.onWarning : themeColors.warning} />
               </Pressable>
               <Pressable testID={`inv-delete-${it.id}`} onPress={() => remove(it.id)} style={styles.delBtn}>
-                <LucideIcon name="trash-2" size={18} color="#8A8A8A" />
+                <LucideIcon name="trash-2" size={18} color={themeColors.muted} />
               </Pressable>
             </View>
           ))
@@ -205,23 +205,23 @@ export default function Inventory() {
       </ScrollView>
 
       <Pressable testID="inv-add-fab" onPress={() => { setAddLoc(loc); sheetRef.current?.expand(); }} style={styles.fab}>
-        <LucideIcon name="plus" size={22} color="#F2F2F2" />
+        <LucideIcon name="plus" size={22} color={themeColors.onBrandPrimary} />
       </Pressable>
 
-      <BottomSheet ref={sheetRef} snapPoints={["55%"]} index={-1} enablePanDownToClose backdropComponent={renderBackdrop} backgroundStyle={{ backgroundColor: "#141414" }} handleIndicatorStyle={{ backgroundColor: "#3D3D3D" }}>
+      <BottomSheet ref={sheetRef} snapPoints={["55%"]} index={-1} enablePanDownToClose backdropComponent={renderBackdrop} backgroundStyle={{ backgroundColor: themeColors.surfaceSecondary }} handleIndicatorStyle={{ backgroundColor: themeColors.borderStrong }}>
         <BottomSheetView>
           <Text style={styles.sheetTitle}>Ajouter un aliment</Text>
-          <TextInput testID="inv-add-name" placeholder="Ex : Courgettes, poulet, riz complet…" placeholderTextColor="#5A5A5A" value={name} onChangeText={setName} style={styles.input} />
+          <TextInput testID="inv-add-name" placeholder="Ex : Courgettes, poulet, riz complet…" placeholderTextColor={themeColors.muted} value={name} onChangeText={setName} style={styles.input} />
           <View style={styles.locRow}>
             {LOCATIONS.map((l) => (
               <Pressable key={l.key} testID={`inv-add-loc-${l.key}`} onPress={() => setAddLoc(l.key)} style={[styles.locChip, addLoc === l.key && styles.locChipActive]}>
-                <LucideIcon name={l.icon as any} size={13} color={addLoc === l.key ? "#DDEED9" : "#8A8A8A"} />
+                <LucideIcon name={l.icon as any} size={13} color={addLoc === l.key ? themeColors.onBrandTertiary : themeColors.muted} />
                 <Text style={[styles.locText, addLoc === l.key && styles.locTextActive]}>{l.label}</Text>
               </Pressable>
             ))}
           </View>
           <Pressable testID="inv-add-submit" onPress={add} disabled={busy || !name.trim()} style={[styles.addBtn, (busy || !name.trim()) && { opacity: 0.5 }]}>
-            {busy ? <ActivityIndicator color="#F2F2F2" /> : <Text style={styles.addBtnText}>Ajouter</Text>}
+            {busy ? <ActivityIndicator color={themeColors.onBrandPrimary} /> : <Text style={styles.addBtnText}>Ajouter</Text>}
           </Pressable>
           <View style={{ height: insets.bottom + 20 }} />
         </BottomSheetView>

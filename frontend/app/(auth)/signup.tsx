@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import LucideIcon from "@react-native-vector-icons/lucide";
 
-import { makeStyles } from "@/src/theme";
+import { makeStyles, colors as themeColors } from "@/src/theme";
 import { useAuth } from "@/src/auth";
 
 const useStyles = makeStyles((colors) => ({
@@ -64,25 +64,25 @@ export default function Signup() {
       <ScrollView contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={styles.content}>
           <Pressable testID="signup-back-button" onPress={() => router.back()} style={styles.back}>
-            <LucideIcon name="chevron-left" size={28} color="#F2F2F2" />
+            <LucideIcon name="chevron-left" size={28} color={themeColors.onSurface} />
           </Pressable>
           <Text style={styles.eyebrow}>Nouveau compte</Text>
           <Text style={styles.title}>Créer un compte</Text>
           <Text style={styles.subtitle}>Vos programmes et votre suivi seront sauvegardés dans votre espace personnel.</Text>
 
           <Text style={styles.label}>Prénom (optionnel)</Text>
-          <TextInput testID="signup-name-input" value={name} onChangeText={setName} placeholder="Marie" placeholderTextColor="#5A5A5A" style={styles.input} />
+          <TextInput testID="signup-name-input" value={name} onChangeText={setName} placeholder="Marie" placeholderTextColor={themeColors.muted} style={styles.input} />
 
           <Text style={styles.label}>Email</Text>
-          <TextInput testID="signup-email-input" value={email} onChangeText={setEmail} placeholder="vous@exemple.fr" placeholderTextColor="#5A5A5A" autoCapitalize="none" keyboardType="email-address" style={styles.input} />
+          <TextInput testID="signup-email-input" value={email} onChangeText={setEmail} placeholder="vous@exemple.fr" placeholderTextColor={themeColors.muted} autoCapitalize="none" keyboardType="email-address" style={styles.input} />
 
           <Text style={styles.label}>Mot de passe (min. 6)</Text>
-          <TextInput testID="signup-password-input" value={pw} onChangeText={setPw} placeholder="••••••••" placeholderTextColor="#5A5A5A" secureTextEntry style={styles.input} />
+          <TextInput testID="signup-password-input" value={pw} onChangeText={setPw} placeholder="••••••••" placeholderTextColor={themeColors.muted} secureTextEntry style={styles.input} />
 
           {err && <Text style={styles.err} testID="signup-error">{err}</Text>}
 
           <Pressable testID="signup-submit-button" onPress={submit} disabled={busy || !email || pw.length < 6} style={[styles.primaryBtn, (busy || !email || pw.length < 6) && { opacity: 0.5 }]}>
-            {busy ? <ActivityIndicator color="#F2F2F2" /> : <Text style={styles.primaryText}>Créer mon compte</Text>}
+            {busy ? <ActivityIndicator color={themeColors.onBrandPrimary} /> : <Text style={styles.primaryText}>Créer mon compte</Text>}
           </Pressable>
         </View>
       </ScrollView>

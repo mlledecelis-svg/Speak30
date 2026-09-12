@@ -4,6 +4,7 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import LucideIcon from "@react-native-vector-icons/lucide";
 import { useRouter } from "expo-router";
+import Animated, { FadeInDown } from "react-native-reanimated";
 
 import { makeStyles, colors as themeColors } from "@/src/theme";
 import { Meal, MEAL_LABELS, MEAL_ICONS, useProgram } from "@/src/program-store";
@@ -36,21 +37,22 @@ const useStyles = makeStyles((colors) => ({
   favIcon: { position: "absolute", right: 12, bottom: 12, backgroundColor: "rgba(10,10,10,0.6)", borderRadius: 999, padding: 6 },
 }));
 
-type Props = { meal: Meal; mealKey: string; week: number; day: number; isNext?: boolean; compact?: boolean; featured?: boolean };
+type Props = { meal: Meal; mealKey: string; week: number; day: number; isNext?: boolean; compact?: boolean; featured?: boolean; index?: number };
 
-export function MealCard({ meal, mealKey, week, day, isNext, compact, featured }: Props) {
+export function MealCard({ meal, mealKey, week, day, isNext, compact, featured, index = 0 }: Props) {
   const styles = useStyles();
   const router = useRouter();
-  const { mealAction } = useProgram();
+  const { mealAction, photoUrl } = useProgram();
   const r = meal.recipe;
   const foods = meal.components.slice(0, 4).map((c) => c.food_name).join(" · ");
   const open = () => router.push({ pathname: "/recipe", params: { week: String(week), day: String(day), meal: mealKey } });
   const cook = () => router.push({ pathname: "/cooking", params: { week: String(week), day: String(day), meal: mealKey } });
 
   return (
+    <Animated.View entering={FadeInDown.delay(index * 80).duration(400)}>
     <Pressable testID={`meal-card-${mealKey}`} onPress={open} style={[styles.card, meal.done && styles.cardDone, isNext && styles.cardNext]}>
       <View>
-        <Image source={r.image} style={[styles.img, compact && { height: 110 }]} contentFit="cover" transition={200} />
+        <Image source={photoUrl(meal.photo) ?? r.image} style={[styles.img, compact && { height: 110 }]} contentFit="cover" transition={200} />
         <LinearGradient colors={["rgba(10,10,10,0.1)", "rgba(10,10,10,0.75)"]} style={styles.scrim} />
         <View style={styles.topRow}>
           <View style={styles.mealPill}>
@@ -94,5 +96,6 @@ export function MealCard({ meal, mealKey, week, day, isNext, compact, featured }
         )}
       </View>
     </Pressable>
+    </Animated.View>
   );
 }

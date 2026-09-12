@@ -4,6 +4,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import LucideIcon from "@react-native-vector-icons/lucide";
 import { Image } from "expo-image";
+import Animated, { FadeInDown } from "react-native-reanimated";
+import { exportWeekPdf } from "@/src/export";
+import { api } from "@/src/api";
 
 import { makeStyles, colors as themeColors } from "@/src/theme";
 import { useProgram, MEAL_ORDER, MEAL_LABELS, MEAL_ICONS } from "@/src/program-store";
@@ -62,7 +65,8 @@ export default function Planner() {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { program, loading, mealAction, todayIndex } = useProgram();
+  const { program, loading, mealAction, todayIndex, photoUrl } = useProgram();
+  const [exporting, setExporting] = useState(false);
   const [week, setWeek] = useState(0);
   const [dayIdx, setDayIdx] = useState(todayIndex);
   const [toast, setToast] = useState<string | null>(null);
@@ -92,6 +96,17 @@ export default function Planner() {
     }
   };
 
+  const exportPdf = async () => {
+    if (!program) return;
+    setExporting(true);
+    try {
+      const shopping = await api<any>(`/programs/${program.id}/shopping/${week}`).catch(() => null);
+      await exportWeekPdf(program, week, shopping);
+    } catch (e: any) {
+      Alert.alert("Export impossible", e?.message ?? "Erreur");
+    } finally { setExporting(false); }
+  };
+
   const doneCount = useMemo(() => (weekData ? weekData.days.reduce((n, d) => n + Object.values(d.meals).filter((m) => m.done).length, 0) : 0), [weekData]);
 
   return (
@@ -102,9 +117,16 @@ export default function Planner() {
             <Text style={styles.eyebrow}>Programme</Text>
             <Text style={styles.title}>Mes menus</Text>
           </View>
-          <Pressable testID="open-config" onPress={() => router.push("/config")} style={styles.iconBtn}>
-            <LucideIcon name="sliders-horizontal" size={18} color={themeColors.onSurface} />
-          </Pressable>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            {program && (
+              <Pressable testID="export-pdf" onPress={exportPdf} disabled={exporting} style={styles.iconBtn}>
+                {exporting ? <ActivityIndicator size="small" color={themeColors.warning} /> : <LucideIcon name="printer" size={18} color={themeColors.onSurface} />}
+              </Pressable>
+            )}
+            <Pressable testID="open-config" onPress={() => router.push("/config")} style={styles.iconBtn}>
+              <LucideIcon name="sliders-horizontal" size={18} color={themeColors.onSurface} />
+            </Pressable>
+          </View>
         </View>
 
         {program && weeks.length > 0 ? (
@@ -159,11 +181,12 @@ export default function Planner() {
                 </Pressable>
               )}
             </View>
-            {MEAL_ORDER.filter((m) => day.meals[m]?.recipe).map((m) => {
+            {MEAL_ORDER.filter((m) => day.meals[m]?.recipe).map((m, idx) => {
               const meal = day.meals[m];
               return (
-                <Pressable key={m} testID={`meal-row-${m}`} onPress={() => router.push({ pathname: "/recipe", params: { week: String(week), day: String(dayIdx), meal: m } })} style={[styles.row, meal.done && styles.rowDone]}>
-                  <Image source={meal.recipe.image} style={styles.thumb} contentFit="cover" transition={200} />
+                <Animated.View key={`${week}-${dayIdx}-${m}`} entering={FadeInDown.delay(idx * 70).duration(350)}>
+                <Pressable testID={`meal-row-${m}`} onPress={() => router.push({ pathname: "/recipe", params: { week: String(week), day: String(dayIdx), meal: m } })} style={[styles.row, meal.done && styles.rowDone]}>
+                  <Image source={photoUrl(meal.photo) ?? meal.recipe.image} style={styles.thumb} contentFit="cover" transition={200} />
                   <View style={styles.rowBody}>
                     <View style={styles.rowLabel}>
                       <LucideIcon name={MEAL_ICONS[m] as any} size={11} color={themeColors.warning} />
@@ -188,6 +211,7 @@ export default function Planner() {
                     </Pressable>
                   </View>
                 </Pressable>
+                </Animated.View>
               );
             })}
           </>

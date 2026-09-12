@@ -1,0 +1,34 @@
+{
+  "summary": "Iteration 3 tested end-to-end. Backend: 48 passed / 1 intentional skip (0 failures). All new iteration-3 endpoints work: (a) GET /programs/{id}/badges returns weeks[], 6 badges [first_cook, explorer, streak3, gourmet, shopper, perfect] with earned/progress/target, meals_done, meals_total, best_streak, meal_times (all 4 keys); after POST meals/action done, meals_done increments AND first_cook.earned becomes true. (b) POST /programs/{id}/meals/photo multipart JPEG works end-to-end via Emergent Object Storage — path starts with 'mon-plan-alimentaire/uploads/<user_id>/' and day.meals.lunch.photo == path; GET /files/{path}?token=<own_token> → 200 image/jpeg with Cache-Control private; without token → 401; with another user's token → 404 (both via ?token= and Authorization header). DELETE /programs/{id}/meals/photo → 200 and photo key removed from meal. Photo > 8 MB → 413; invalid week/day/meal → 404. All regression endpoints (generate, shopping/0, meals/action replace, GET /targets, exclusions, swap_day, favorite, rating, replace_component, activate, delete, migration/normalization) still green. Frontend (390x844, testuser1): light theme (cream #FAF7F0 detected in 3 root surfaces); Accueil reminder-card visible (RAPPEL · COLLATION VERS 16H30 + recipe name + time + 'Cuisiner' button); reminder-cook navigates to /cooking?week=X&day=Y&meal=snack with cooking-step-0 rendered; badges-row present with all 6 testIDs (badge-first_cook/explorer/streak3/gourmet/shopper/perfect); no red screen. Menus: export-pdf button present, click triggers window.print exactly once (verified via stub) and the DOM is restored (button still present after), no JS error. Recipe (/recipe?week=0&day=0&meal=lunch): recipe-photo button present, page.expect_file_chooser + set_files with a valid tiny JPEG succeeds — after ~5 s the hero image src becomes https://<preview>/api/files/mon-plan-alimentaire/uploads/user_fe46a93f2289/<uuid>.jpg?token=<session_token>, no storage error. Regression: Courses (58 shop-item-* checkboxes, toggle first → progress becomes 1/58), Maison (renders sections Frigo/Congél./Placards + tips), Suivi (renders empty state cleanly), Config → generate-button → /planner with new menus visible. Only console noise: React Native web deprecation warnings for shadow* → boxShadow and props.pointerEvents (Expo internal, not app code). No deprecated packages / SafeAreaView / raw-text issues detected.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_iteration3.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py:439-501 auth on /api/files/{path} accepts either ?token= query or Authorization header, and matches photo.user_id → correctly returns 404 (not 403) when the path exists but belongs to another user. Good privacy behavior.",
+    "server.py:446-472 upload_meal_photo maps storage 402→402 (crédits épuisés) and 5xx→503 with a clear French message; size limit enforced pre-storage at 8 MB. Path is namespaced by APP_NAME + user_id which prevents cross-tenant enumeration.",
+    "server.py:507-550 badges endpoint recomputes shopping counts on the fly from shopping_for_week + shopping_checked. This is O(weeks * days * shopping) per call — fine for 4 weeks but if duration is later increased, consider caching per program.",
+    "storage.py performs a synchronous requests call — server.py correctly wraps it in run_in_threadpool everywhere it is invoked. Good.",
+    "engine/reminder logic on Accueil (index.tsx:103) uses `useMemo` over the current program + local time — verified live: 'Rappel · COLLATION VERS 16H30' rendered correctly at run time.",
+    "Frontend deprecation warnings 'shadow* props deprecated. Use boxShadow' come from React Native Web itself (many StyleSheet definitions use shadowColor/shadowOpacity/shadowRadius/shadowOffset which are the RN-native API). Not a bug, but on web these could be complemented by boxShadow for silent output. Purely cosmetic."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration3.py"],
+  "success_rate": {
+    "backend": "100% (48/48) — 1 intentional skip (replace_component: no equivalent available). All 13 new iteration-3 tests green including photo upload/download/delete via Emergent Object Storage, cross-user 404, 401 without token, 413 oversize, 404 on invalid week/day/meal, and badges shape + first_cook progression.",
+    "frontend": "100% for tested flows (login, light theme, reminder-card + reminder-cook navigation to /cooking, badges-row with all 6 badges, export-pdf triggers window.print, recipe-photo upload via file_chooser and hero switches to /api/files/, shopping toggle 1/58, inventory & tracker load, config → generate → /planner). No red screen, no page errors."
+  },
+  "seed_data_creation": "TestIteration3PhotosAndBadges signs up two fresh users (test_it3_<uuid>@test.fr and test_it3b_<uuid>@test.fr) and generates a 1-week program (duration=1 for speed) for the first one. One JPEG photo is uploaded and then deleted within the same class. Frontend uses the seeded testuser1@test.fr — a photo was left on its lunch (day 0 week 0) as visible evidence; main agent can clear it via DELETE /api/programs/{id}/meals/photo if needed for a clean state.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iteration 3 endpoints: GET /api/programs/{id}/badges, POST /api/programs/{id}/meals/photo (multipart 'file', query week/day/meal), DELETE same, GET /api/files/{path}?token=<session_token>. Photos live in Emergent Object Storage under 'mon-plan-alimentaire/uploads/<user_id>/<uuid>.<ext>' and are also referenced by a photos MongoDB collection (used for auth on GET /files). Frontend testIDs added iteration-3: reminder-card, reminder-cook, badges-row, badge-<id>, export-pdf, recipe-photo. Shopping items use shop-item-<food_id>, not shopping-item-<idx>. window.print can be stubbed BEFORE clicking export-pdf: `window.print = () => window.__printed++`. Recipe screen on web: recipe-photo opens the browser file chooser — use page.expect_file_chooser + set_files with a valid JPEG. Storage may return 402 (crédits épuisés) or 503 in some envs — tests handle this via pytest.skip; in current preview env storage is fully working. To retest photo endpoints headlessly, use the same _tiny_jpeg helper from tests/test_iteration3.py.",
+  "rca_of_issue": "N/A — no regression or bug found in iteration 3 features."
+}

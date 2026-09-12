@@ -63,6 +63,19 @@ Application mobile (Expo React Native) portage de https://elegant-starlight-eebd
 - Config cibles (modal plein écran) + historique des programmes (charger / supprimer)
 - Maison : options « Utiliser en priorité ce que j'ai » et regroupement ensemble / séparément
 
+## Itération 3 — design lumineux & nouvelles fonctionnalités (livrée)
+- **Thème clair premium par défaut** (crème #FAF7F0 / olive #1F2A1E / vert mousse #4E6B4A / or #B08D57), animations d'apparition (Reanimated FadeInDown) sur cartes et lignes
+- **Export PDF** (Menus → 🖨) : semaine complète (menus, grammages, temps) + liste de courses par rayon ; impression sur web, partage PDF sur mobile (expo-print / expo-sharing)
+- **Photos de plats** : appareil photo / galerie (expo-image-picker) → `POST /programs/{id}/meals/photo` → Emergent Object Storage (`backend/storage.py`), lecture `GET /files/{path}?token=`, suppression ; la photo remplace l'illustration du plat (recette, menus, accueil)
+- **Rappel du jour** (Accueil) : prochain repas à prévoir, heure cible (7h30 / 12h30 / 16h30 / 19h30), temps de préparation, « Cuisiner »
+- **Défis** (`GET /programs/{id}/badges`) : Première recette, Explorateur (10 recettes), Série de 3 jours, Gourmet (3 coups de cœur), Courses bouclées, Semaine parfaite — section « Mes défis » sur l'Accueil avec progression
+
+## Itération 4 — confort & personnalisation (livrée)
+- **Mode sombre** : écran Réglages (Accueil → ⚙) avec Lumineux / Sombre / Automatique, mémorisé sur l'appareil (AsyncStorage) ; `useTheme` réactif + `colors` dynamique (Proxy) dans `src/theme.ts` ; déconnexion déplacée dans Réglages
+- **Partage de recette** (fiche → 🔗) : texte complet (nom, temps, assiette, étapes) via Share natif ; navigator.share ou presse-papiers sur web
+- **Suivi visuel** : courbe SVG lissée par semaine (`WeightChart`), ligne d'objectif (`PUT /preferences/goal`), carte d'encouragement par paliers (25/50/75 %, objectif atteint) avec barre de progression
+- **Notes personnelles** : note privée par recette (`PUT /preferences/notes`), pré-remplie à chaque retour de la recette
+
 ## Stack technique
 - Frontend : Expo Router 57, Reanimated 4, gorhom/bottom-sheet, expo-image, expo-linear-gradient, @react-native-vector-icons/lucide, expo-blur
 - Backend : FastAPI, Motor (MongoDB), bcrypt, httpx (Emergent Google Auth)
@@ -76,7 +89,7 @@ Application mobile (Expo React Native) portage de https://elegant-starlight-eebd
 - `GET|POST /inventory`, `PUT|DELETE /inventory/{id}`
 
 ## Design
-- Palette Glass/Luxe DARK : `#0A0A0A` (obsidienne), `#4E6B4A` (vert mousse — brand), `#B08D57` (or antique — accent)
+- Palette lumineuse (depuis itération 3) : crème `#FAF7F0`, olive `#1F2A1E`, vert mousse `#4E6B4A` (brand), or antique `#B08D57` (accent) — le thème sombre reste défini dans `theme.ts`
 - Typographie native, poids fins pour les titres, uppercase letter-spacing pour les eyebrows
 - Bottom sheets @gorhom/bottom-sheet pour la config lourde
 - 5 onglets bas : Accueil / Menus / Courses / Maison / Suivi

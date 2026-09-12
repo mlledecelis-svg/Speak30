@@ -1,5 +1,6 @@
-import { useMemo } from "react";
-import { Appearance, StyleSheet, useColorScheme } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Appearance, StyleSheet } from "react-native";
 
 export type ColorScheme = "light" | "dark";
 
@@ -37,25 +38,107 @@ const dark = {
   divider: "#1A1A1A",
 };
 
+const light: typeof dark = {
+  surface: "#FAF7F0",
+  onSurface: "#1F2A1E",
+  surfaceSecondary: "#FFFFFF",
+  onSurfaceSecondary: "#2E3A2C",
+  surfaceTertiary: "#F1ECDF",
+  onSurfaceTertiary: "#4A5548",
+  surfaceInverse: "#FFFFFF",
+  onSurfaceInverse: "#1F2A1E",
+  muted: "#7A8378",
+
+  brand: "#4E6B4A",
+  onBrand: "#FFFFFF",
+  brandPrimary: "#4E6B4A",
+  onBrandPrimary: "#FFFFFF",
+  brandSecondary: "#6B8A66",
+  onBrandSecondary: "#FFFFFF",
+  brandTertiary: "#E3EEDF",
+  onBrandTertiary: "#2F4A2C",
+
+  success: "#4E6B4A",
+  onSuccess: "#FFFFFF",
+  warning: "#B08D57",
+  onWarning: "#FFFFFF",
+  error: "#B9524F",
+  onError: "#FFFFFF",
+  info: "#5E7A7E",
+  onInfo: "#FFFFFF",
+
+  border: "#E6E0D2",
+  borderStrong: "#CFC6B2",
+  divider: "#F0EBE0",
+};
+
 export type ThemeColors = typeof dark;
 
-export const defaultScheme = "dark" satisfies ColorScheme;
+export const defaultScheme = "light" satisfies ColorScheme;
 
-export const themes: { light?: ThemeColors; dark: ThemeColors } = { dark };
+export const themes: { light?: ThemeColors; dark: ThemeColors } = { light, dark };
 
-export function setColorScheme(scheme: ColorScheme | null) {
-  Appearance.setColorScheme?.(scheme);
+export type ThemePreference = "light" | "dark" | "system";
+const PREF_KEY = "theme_preference";
+let preference: ThemePreference = "light";
+let currentScheme: ColorScheme = defaultScheme;
+const listeners = new Set<() => void>();
+
+function resolveScheme(pref: ThemePreference): ColorScheme {
+  if (pref === "system") {
+    const sys = Appearance.getColorScheme();
+    return sys === "dark" ? "dark" : "light";
+  }
+  return pref;
 }
 
-setColorScheme?.(themes.light ? null : defaultScheme);
-
-export function useTheme(): { scheme: ColorScheme; colors: ThemeColors } {
-  const system = useColorScheme();
-  const scheme: ColorScheme = system && themes[system as ColorScheme] ? (system as ColorScheme) : defaultScheme;
-  return { scheme, colors: (themes[scheme] ?? themes.dark) as ThemeColors };
+function applyPreference(pref: ThemePreference) {
+  preference = pref;
+  currentScheme = resolveScheme(pref);
+  try {
+    Appearance.setColorScheme?.((pref === "system" ? null : pref) as any);
+  } catch {}
+  listeners.forEach((l) => l());
 }
 
-export const colors = themes.dark;
+export async function loadThemePreference() {
+  try {
+    const v = (await AsyncStorage.getItem(PREF_KEY)) as ThemePreference | null;
+    if (v === "light" || v === "dark" || v === "system") applyPreference(v);
+  } catch {}
+}
+
+export async function setThemePreference(pref: ThemePreference) {
+  applyPreference(pref);
+  try {
+    await AsyncStorage.setItem(PREF_KEY, pref);
+  } catch {}
+}
+
+export function getThemePreference(): ThemePreference {
+  return preference;
+}
+
+Appearance.addChangeListener?.(() => {
+  if (preference === "system") applyPreference("system");
+});
+
+export function useTheme(): { scheme: ColorScheme; colors: ThemeColors; preference: ThemePreference } {
+  const [, force] = useState(0);
+  useEffect(() => {
+    const l = () => force((n) => n + 1);
+    listeners.add(l);
+    return () => {
+      listeners.delete(l);
+    };
+  }, []);
+  return { scheme: currentScheme, colors: themes[currentScheme] as ThemeColors, preference };
+}
+
+/** Couleurs du thème courant (lecture dynamique) — utilisable hors hooks. */
+export const colors: ThemeColors = new Proxy({} as ThemeColors, {
+  get: (_t, key: string) => (themes[currentScheme] as any)[key],
+}) as ThemeColors;
 
 export function makeStyles<T extends StyleSheet.NamedStyles<T> | StyleSheet.NamedStyles<any>>(
   factory: (colors: ThemeColors) => T & StyleSheet.NamedStyles<any>,

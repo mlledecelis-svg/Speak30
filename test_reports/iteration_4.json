@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 4 tested end-to-end. Backend: 59/59 pytest green (10 new iteration-4 tests + 49 regression). New endpoints: GET /api/preferences returns notes:{} and goal_weight:null by default; PUT /api/preferences/goal accepts {goal_weight:70} (200, GET reflects 70), rejects {goal_weight:10} with 400, accepts null (200 + GET null); PUT /api/preferences/notes {blueprint_id:'adapt_wok', note:'Ajouter du citron'} → 200 and GET notes.adapt_wok reflects it; empty note removes the key ($unset); blank blueprint_id → 400; note > 1000 chars is truncated to exactly 1000 both in response and in GET. Regression: /api/programs/generate, /api/programs/current, /api/programs/{id}/badges, POST/GET /api/weights all 200. Frontend (390x844, testuser1@test.fr): (1) Accueil open-settings → Réglages: 3 theme options (theme-dark/theme-light/theme-system) present; theme-dark applies dark surface (rgb(10,10,10) / rgb(20,20,20) detected among top-4 bg colors), theme-light applies cream (rgb(250,247,240) family — actual: rgb(241,236,223) / rgb(255,255,255) with light brand accents), localStorage.theme_preference == 'dark' after selecting dark and dark persists after reload (rgb(10,10,10) present in the DOM after full reload); logout-button visible (not clicked); settings-close returns to Accueil. (2) Recipe (/recipe?week=0&day=0&meal=lunch): recipe-share present, clicking triggers navigator.share with the recipe name in title ('Brochettes de saumon & semoule') and full text body starting with '🍽 Brochettes de saumon & semoule\\n⏱ 30 min…' including components + steps + 'Partagé depuis Mon plan alimentaire'. Note flow: note-card + note-input + note-save render, saving shows toast '📝 Note enregistrée pour cette recette.', and after page reload the note is pre-filled in note-input (verified via a unique random string). (3) Tracker: added 3 weights via add-weight-fab → weight-date + weight-kg + weight-submit (2026-08-24 74.0, 2026-08-31 73.2, 2026-09-07 72.5); weight-chart contains an SVG with 2 paths + 3 circles + axis labels ['70.0','72.0','74.0','24/08','31/08','07/09']; goal-input '70' + goal-save adds the text 'Objectif 70 kg' inside the SVG and milestone-card reads '🌱 Un quart du chemin — 38 % déjà accompli. Chaque semaine compte, continuez ainsi.'; clearing the goal makes milestone-card revert to '🎯 Fixez un objectif — Indiquez votre poids cible ci-dessus…'. Test weights cleaned up via weight-del-{id} (0 remaining). No JS pageerrors; only usual RN-web deprecation warnings (shadow*, pointerEvents) which are noise from React Native web itself, not the app.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration4.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_iteration3.py",
+    "/app/test_reports/pytest/pytest_iter4.xml",
+    "/app/test_reports/pytest/pytest_all.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py:306-316 PUT /preferences/notes correctly uses $set for a non-empty note and $unset for an empty one, so the notes object stays sparse; note is trimmed then truncated at 1000 chars — good defense against oversized clients.",
+    "server.py:319-325 PUT /preferences/goal enforces 20<=g<=300 kg and accepts explicit null to reset — well aligned with the tracker UX (clear button empties the input then calls save with null).",
+    "server.py:289-294 GET /preferences uses setdefault on notes and goal_weight so pre-iteration-4 users get an idempotent shape without a migration step. Clean.",
+    "theme.ts:104-116 persistence via AsyncStorage — on web AsyncStorage is backed by localStorage which is why localStorage.getItem('theme_preference') returns 'dark' in the browser test. loadThemePreference is called at app boot so the first paint after reload correctly restores the saved theme.",
+    "recipe.tsx:108-138 shareRecipe on web calls navigator.share first, falls back to navigator.clipboard.writeText, and shows a toast — verified by stubbing both. Message includes recipe name, timing, components, steps and a footer, which is exactly what the request specifies.",
+    "tracker.tsx:148-163 the bottom sheet submit sends field 'weight' (not 'weight_kg') matching backend WeightEntry.weight — the testID weight-kg is only for the input field label. Consistent."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration4.py"
+  ],
+  "success_rate": {
+    "backend": "100% (59/59) — 10 new iteration-4 tests + 49 regression, all green. Preferences/goal_weight boundaries (400 at 10 kg), preferences/notes edge cases (empty removes, blank id 400, >1000 truncated to 1000) and full CRUD path Create → GET → reset all verified.",
+    "frontend": "100% for tested flows — Settings (theme dark/light/system + AsyncStorage persistence + logout-button visible + settings-close), Recipe (recipe-share stub captured full recipe payload, note-input save + toast + pre-fill after reload), Tracker (3 weights added, SVG chart w/ paths+circles+labels, goal 70 draws 'Objectif 70 kg' line + milestone-card with 38 % progress copy, empty goal shows 'Fixez un objectif', cleanup successful). No red screen, no JS pageerror."
+  },
+  "seed_data_creation": "Backend tests sign up a fresh user (test_it4_<uuid>@test.fr) — self-contained. Frontend test on testuser1@test.fr created a temporary note on blueprint 'adapt_wok' (auto-cleared at end of test via empty save) and 3 weight entries (2026-08-24, 2026-08-31, 2026-09-07) which were all deleted at teardown. Additionally goal_weight was set then reset to null. State is clean for the next agent.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iteration 4 endpoints: PUT /api/preferences/goal {goal_weight: number|null} with 20<=g<=300, PUT /api/preferences/notes {blueprint_id, note} (empty note removes key, note truncated at 1000, blank id → 400), GET /api/preferences now includes notes:{} and goal_weight. Frontend testIDs added iteration-4: open-settings (Accueil), theme-light/theme-dark/theme-system + settings-close + logout-button (Réglages), recipe-share + note-card + note-input + note-save (Recipe), goal-input + goal-save + milestone-card + weight-chart + weight-submit + weight-del-<id> + weight-date + weight-kg + add-weight-fab (Tracker). Login testIDs are login-email-input / login-password-input / login-submit-button (NOT login-email/password/submit). Theme persistence is via AsyncStorage which maps to window.localStorage['theme_preference'] on web — safe to stub/read directly. Weight POST body is {date:'YYYY-MM-DD', weight: float} — backend field is 'weight' (not 'weight_kg' despite the frontend testID being 'weight-kg' for the input). programs/generate returns the program object directly, no {program:{}} wrapper.",
+  "rca_of_issue": "N/A — no bug detected in iteration 4 features. Both temporary test failures during initial run were due to incorrect assumptions in the test file itself (wrong field name 'weight_kg' vs backend 'weight'; wrong response shape {program:{}} vs direct object). Fixed within the test file (/app/backend/tests/test_iteration4.py) before final green run."
+}

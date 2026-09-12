@@ -177,3 +177,9 @@ agent_communication:
 
   - agent: "main"
     message: "Bug utilisateur : 'Générer mon programme' → écran d'erreur. Cause : cibles (targets) et programmes de l'ancien format (itération 1) en base → KeyError 'ref' (500) côté backend et crash de rendu côté frontend. Corrections : normalize_program robuste (migration des anciens formats, variantes, règles), suppression au démarrage des programmes ancien format, filtres NEW_FORMAT sur /programs*, api.ts tolérant aux réponses non-JSON, garde-fous frontend (options ?? [], meals sans recipe ignorés), Alert sur échec de génération. Plus dédup protéine midi/soir et swap_day (catégories + can_swap) corrigés après itération précédente."
+
+  - agent: "main"
+    message: "Itération 3 : thème lumineux (crème/olive/or) par défaut + animations FadeInDown ; Export PDF (bouton export-pdf sur Menus : expo-print/expo-sharing, print dialog sur web) ; Photos de plats (recipe-photo → expo-image-picker → POST /api/programs/{id}/meals/photo multipart (week,day,meal query) → Emergent Object Storage, lecture GET /api/files/{path}?token=..., DELETE photo) ; Rappel du jour (reminder-card / reminder-cook sur Accueil) ; Défis (GET /api/programs/{id}/badges, section 'Mes défis' badges-row / badge-<id> sur Accueil). EMERGENT_LLM_KEY ajouté dans backend/.env."
+
+  - agent: "main"
+    message: "Itération 4 : Mode sombre (écran /settings via open-settings sur Accueil : theme-light/dark/system, persistance AsyncStorage, logout-button déplacé dans Réglages) ; Partage recette (recipe-share : Share natif / navigator.share ou presse-papiers sur web) ; Suivi visuel (WeightChart SVG moyenne hebdo + ligne d'objectif, goal-input/goal-save → PUT /api/preferences/goal, milestone-card) ; Notes personnelles (note-input/note-save → PUT /api/preferences/notes {blueprint_id, note}, GET /api/preferences renvoie notes & goal_weight)."

@@ -6,7 +6,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import LucideIcon from "@react-native-vector-icons/lucide";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { makeStyles } from "@/src/theme";
+import { makeStyles, colors as themeColors } from "@/src/theme";
 import { useAuth } from "@/src/auth";
 
 const useStyles = makeStyles((colors) => ({
@@ -101,7 +101,7 @@ export default function Login() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 32 }} keyboardShouldPersistTaps="handled">
         <View style={styles.hero}>
           <Image source="https://images.unsplash.com/photo-1667499745120-f9bcef8f584e?crop=entropy&cs=srgb&fm=jpg&q=85" style={styles.heroImg} contentFit="cover" />
-          <LinearGradient colors={["transparent", "rgba(10,10,10,0.4)", "#0A0A0A"]} style={styles.scrim} />
+          <LinearGradient colors={["transparent", "rgba(250,247,240,0.5)", themeColors.surface]} style={styles.scrim} />
         </View>
         <View style={styles.content}>
           <Text style={styles.eyebrow}>Mon plan alimentaire</Text>
@@ -114,7 +114,7 @@ export default function Login() {
             value={email}
             onChangeText={setEmail}
             placeholder="vous@exemple.fr"
-            placeholderTextColor="#5A5A5A"
+            placeholderTextColor={themeColors.muted}
             autoCapitalize="none"
             keyboardType="email-address"
             style={styles.input}
@@ -125,7 +125,7 @@ export default function Login() {
             value={pw}
             onChangeText={setPw}
             placeholder="••••••••"
-            placeholderTextColor="#5A5A5A"
+            placeholderTextColor={themeColors.muted}
             secureTextEntry
             style={styles.input}
           />
@@ -133,7 +133,7 @@ export default function Login() {
           {err && <Text style={styles.err} testID="login-error">{err}</Text>}
 
           <Pressable testID="login-submit-button" onPress={submit} disabled={busy || !email || !pw} style={[styles.primaryBtn, (busy || !email || !pw) && { opacity: 0.5 }]}>
-            {busy ? <ActivityIndicator color="#F2F2F2" /> : <Text style={styles.primaryText}>Se connecter</Text>}
+            {busy ? <ActivityIndicator color={themeColors.onBrandPrimary} /> : <Text style={styles.primaryText}>Se connecter</Text>}
           </Pressable>
 
           <View style={styles.divider}>
@@ -143,8 +143,8 @@ export default function Login() {
           </View>
 
           <Pressable testID="login-google-button" onPress={google} disabled={busyG} style={styles.googleBtn}>
-            {busyG ? <ActivityIndicator color="#F2F2F2" /> : <>
-              <LucideIcon name="chrome" size={18} color="#F2F2F2" />
+            {busyG ? <ActivityIndicator color={themeColors.onBrandPrimary} /> : <>
+              <LucideIcon name={"chrome" as any} size={18} color={themeColors.onBrandPrimary} />
               <Text style={styles.googleText}>Continuer avec Google</Text>
             </>}
           </Pressable>

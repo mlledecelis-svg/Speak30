@@ -1,4 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Animated, { FadeInDown } from "react-native-reanimated";
+import { api } from "@/src/api";
 import { View, Text, Pressable, ScrollView, ActivityIndicator, RefreshControl } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -8,7 +10,7 @@ import LucideIcon from "@react-native-vector-icons/lucide";
 
 import { makeStyles, colors as themeColors } from "@/src/theme";
 import { useAuth } from "@/src/auth";
-import { useProgram, MEAL_ORDER } from "@/src/program-store";
+import { useProgram, MEAL_ORDER, MEAL_LABELS, MEAL_TIMES } from "@/src/program-store";
 import { MealCard } from "@/src/components/MealCard";
 
 const useStyles = makeStyles((colors) => ({
@@ -45,6 +47,23 @@ const useStyles = makeStyles((colors) => ({
   quick: { flex: 1, padding: 14, borderRadius: 16, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, gap: 8 },
   quickLabel: { color: colors.onSurface, fontSize: 13, fontWeight: "600" },
   quickHint: { color: colors.muted, fontSize: 11 },
+  reminder: { marginHorizontal: 24, marginBottom: 16, borderRadius: 18, padding: 16, backgroundColor: colors.brandPrimary, flexDirection: "row", alignItems: "center", gap: 14, shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 5 },
+  reminderIcon: { width: 44, height: 44, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center" },
+  reminderEyebrow: { color: colors.onBrandPrimary, opacity: 0.8, fontSize: 10, letterSpacing: 2, textTransform: "uppercase", fontWeight: "700" },
+  reminderTitle: { color: colors.onBrandPrimary, fontSize: 15, fontWeight: "600", marginTop: 2 },
+  reminderSub: { color: colors.onBrandPrimary, opacity: 0.85, fontSize: 12, marginTop: 2 },
+  reminderBtn: { backgroundColor: colors.onBrandPrimary, paddingHorizontal: 12, height: 36, borderRadius: 999, alignItems: "center", justifyContent: "center" },
+  reminderBtnText: { color: colors.brandPrimary, fontSize: 12, fontWeight: "700" },
+  sectionTitle: { color: colors.onSurface, fontSize: 20, fontWeight: "300", paddingHorizontal: 24, marginTop: 8, marginBottom: 10 },
+  badgesRow: { paddingHorizontal: 24, gap: 10, paddingBottom: 16 },
+  badge: { width: 128, padding: 12, borderRadius: 16, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, gap: 6 },
+  badgeOn: { borderColor: colors.warning, backgroundColor: colors.brandTertiary },
+  badgeIcon: { width: 36, height: 36, borderRadius: 999, backgroundColor: colors.surfaceTertiary, alignItems: "center", justifyContent: "center" },
+  badgeIconOn: { backgroundColor: colors.warning },
+  badgeLabel: { color: colors.onSurface, fontSize: 12, fontWeight: "600" },
+  badgeDesc: { color: colors.muted, fontSize: 10, lineHeight: 14 },
+  badgeTrack: { height: 4, borderRadius: 999, backgroundColor: colors.surfaceTertiary, marginTop: 2 },
+  badgeFill: { height: 4, borderRadius: 999, backgroundColor: colors.warning },
 }));
 
 const HERO = "https://images.unsplash.com/photo-1667499745120-f9bcef8f584e?crop=entropy&cs=srgb&fm=jpg&q=85";
@@ -53,10 +72,16 @@ export default function Home() {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { program, loading, refresh, todayIndex } = useProgram();
   const [refreshing, setRefreshing] = useState(false);
   const [week, setWeek] = useState(0);
+  const [badges, setBadges] = useState<any>(null);
+
+  useEffect(() => {
+    if (!program) { setBadges(null); return; }
+    api(`/programs/${program.id}/badges`).then(setBadges).catch(() => setBadges(null));
+  }, [program]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -75,6 +100,22 @@ export default function Home() {
     const order = h < 10 ? ["breakfast", "lunch", "snack", "dinner"] : h < 14 ? ["lunch", "snack", "dinner", "breakfast"] : h < 17 ? ["snack", "dinner", "lunch", "breakfast"] : ["dinner", "snack", "lunch", "breakfast"];
     return order.find((m) => day.meals[m] && !day.meals[m].done) ?? null;
   }, [day]);
+  const reminder = useMemo(() => {
+    if (!day || !nextMeal) return null;
+    const [hh, mm] = MEAL_TIMES[nextMeal] ?? [12, 30];
+    const now = new Date();
+    const target = new Date(now); target.setHours(hh, mm, 0, 0);
+    const diffMin = Math.round((target.getTime() - now.getTime()) / 60000);
+    const meal = day.meals[nextMeal];
+    const startIn = diffMin - meal.recipe.minutes;
+    let when: string;
+    if (diffMin < -60) when = "Repas de la journée à cocher";
+    else if (startIn > 60) when = `Commencez la préparation dans ${Math.floor(startIn / 60)} h ${String(startIn % 60).padStart(2, "0")}`;
+    else if (startIn > 0) when = `Commencez la préparation dans ${startIn} min`;
+    else when = "C'est le moment de passer en cuisine !";
+    return { meal, key: nextMeal, when, time: `${hh}h${String(mm).padStart(2, "0")}` };
+  }, [day, nextMeal]);
+
   const dateLabel = new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
 
   return (
@@ -89,8 +130,8 @@ export default function Home() {
             <Text style={styles.eyebrow}>Bonjour</Text>
             <Text style={styles.greeting} numberOfLines={1}>{user?.name || "Bienvenue"}</Text>
           </View>
-          <Pressable testID="logout-button" onPress={logout} style={styles.logout}>
-            <LucideIcon name="log-out" size={18} color={themeColors.onSurface} />
+          <Pressable testID="open-settings" onPress={() => router.push("/settings")} style={styles.logout}>
+            <LucideIcon name="settings" size={18} color={themeColors.onSurface} />
           </Pressable>
         </View>
 
@@ -137,6 +178,22 @@ export default function Home() {
               </Pressable>
             </View>
 
+            {reminder && (
+              <Animated.View entering={FadeInDown.duration(400)}>
+                <Pressable testID="reminder-card" onPress={() => router.push({ pathname: "/recipe", params: { week: String(week), day: String(todayIndex), meal: reminder.key } })} style={styles.reminder}>
+                  <View style={styles.reminderIcon}><LucideIcon name="bell-ring" size={20} color={themeColors.onBrandPrimary} /></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.reminderEyebrow}>Rappel · {MEAL_LABELS[reminder.key]} vers {reminder.time}</Text>
+                    <Text style={styles.reminderTitle} numberOfLines={1}>{reminder.meal.recipe.name}</Text>
+                    <Text style={styles.reminderSub}>⏱ {reminder.meal.recipe.minutes} min · {reminder.when}</Text>
+                  </View>
+                  <Pressable testID="reminder-cook" onPress={() => router.push({ pathname: "/cooking", params: { week: String(week), day: String(todayIndex), meal: reminder.key } })} style={styles.reminderBtn}>
+                    <Text style={styles.reminderBtnText}>Cuisiner</Text>
+                  </Pressable>
+                </Pressable>
+              </Animated.View>
+            )}
+
             <View style={styles.quickRow}>
               <Pressable testID="home-go-shopping" onPress={() => router.push("/(tabs)/shopping")} style={styles.quick}>
                 <LucideIcon name="shopping-basket" size={18} color={themeColors.warning} />
@@ -150,9 +207,28 @@ export default function Home() {
               </Pressable>
             </View>
 
-            {active.map((m) => (
-              <MealCard key={m} meal={day.meals[m]} mealKey={m} week={week} day={todayIndex} isNext={m === nextMeal} />
+            {active.map((m, i) => (
+              <MealCard key={m} meal={day.meals[m]} mealKey={m} week={week} day={todayIndex} isNext={m === nextMeal} index={i} />
             ))}
+
+            {badges && (
+              <>
+                <Text style={styles.sectionTitle}>Mes défis · {badges.badges.filter((b: any) => b.earned).length}/{badges.badges.length} obtenus</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.badgesRow} testID="badges-row">
+                  {badges.badges.map((b: any, i: number) => (
+                    <Animated.View key={b.id} entering={FadeInDown.delay(i * 60).duration(350)}>
+                      <View style={[styles.badge, b.earned && styles.badgeOn]} testID={`badge-${b.id}`}>
+                        <View style={[styles.badgeIcon, b.earned && styles.badgeIconOn]}><LucideIcon name={b.icon as any} size={16} color={b.earned ? themeColors.onWarning : themeColors.muted} /></View>
+                        <Text style={styles.badgeLabel}>{b.label}</Text>
+                        <Text style={styles.badgeDesc} numberOfLines={2}>{b.desc}</Text>
+                        <View style={styles.badgeTrack}><View style={[styles.badgeFill, { width: `${Math.min(100, Math.round((b.progress / b.target) * 100))}%` }]} /></View>
+                        <Text style={styles.badgeDesc}>{b.earned ? "✓ Obtenu" : `${b.progress}/${b.target}`}</Text>
+                      </View>
+                    </Animated.View>
+                  ))}
+                </ScrollView>
+              </>
+            )}
           </>
         )}
       </ScrollView>

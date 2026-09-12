@@ -1,10 +1,12 @@
-import { useState } from "react";
-import { View, Text, Pressable, ScrollView, ActivityIndicator, Alert } from "react-native";
+import { useEffect, useState } from "react";
+import { View, Text, Pressable, ScrollView, ActivityIndicator, Alert, Platform, Linking, Share, TextInput } from "react-native";
+import { api } from "@/src/api";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import LucideIcon from "@react-native-vector-icons/lucide";
+import * as ImagePicker from "expo-image-picker";
 
 import { makeStyles, colors as themeColors } from "@/src/theme";
 import { useProgram, MEAL_LABELS } from "@/src/program-store";
@@ -52,6 +54,11 @@ const useStyles = makeStyles((colors) => ({
   ratingOn: { borderColor: colors.warning, backgroundColor: colors.brandTertiary },
   ratingText: { color: colors.onSurfaceSecondary, fontSize: 12 },
   ratingConfirm: { color: colors.onBrandTertiary, fontSize: 12, marginTop: 10 },
+  noteInput: { backgroundColor: colors.surfaceTertiary, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12, color: colors.onSurface, fontSize: 14, minHeight: 80, textAlignVertical: "top" },
+  noteRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 10 },
+  noteHint: { color: colors.muted, fontSize: 11, flex: 1 },
+  noteSave: { backgroundColor: colors.brandPrimary, paddingHorizontal: 16, height: 36, borderRadius: 999, alignItems: "center", justifyContent: "center" },
+  noteSaveText: { color: colors.onBrandPrimary, fontSize: 12, fontWeight: "600" },
   toast: { marginHorizontal: 20, marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: colors.brandTertiary },
   toastText: { color: colors.onBrandTertiary, fontSize: 12 },
 }));
@@ -71,12 +78,62 @@ export default function RecipeScreen() {
   const week = Number(params.week ?? 0);
   const dayIdx = Number(params.day ?? 0);
   const mealKey = String(params.meal ?? "lunch");
-  const { program, mealAction } = useProgram();
+  const { program, mealAction, photoUrl, uploadPhoto, removePhoto } = useProgram();
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [note, setNote] = useState("");
+  const [savedNote, setSavedNote] = useState("");
 
   const day = program?.weeks?.[week]?.days?.[dayIdx];
   const meal = day?.meals?.[mealKey];
+  const bpId = meal?.recipe?.blueprint_id;
+
+  useEffect(() => {
+    if (!bpId) return;
+    api<any>("/preferences").then((p) => { const n = p?.notes?.[bpId] ?? ""; setNote(n); setSavedNote(n); }).catch(() => {});
+  }, [bpId]);
+
+  const saveNote = async () => {
+    if (!bpId) return;
+    setBusy("note");
+    try {
+      await api("/preferences/notes", { method: "PUT", body: JSON.stringify({ blueprint_id: bpId, note }) });
+      setSavedNote(note.trim());
+      setNote(note.trim());
+      setToast(note.trim() ? "📝 Note enregistrée pour cette recette." : "Note supprimée.");
+      setTimeout(() => setToast(null), 3000);
+    } catch (e: any) { Alert.alert("Impossible", e?.message ?? "Erreur"); } finally { setBusy(null); }
+  };
+
+  const shareRecipe = async () => {
+    if (!meal) return;
+    const r0 = meal.recipe;
+    const lines = [
+      `🍽 ${r0.name}`,
+      `⏱ ${r0.minutes} min · ${r0.difficulty_label}`,
+      "",
+      "Dans votre assiette :",
+      ...meal.components.map((c) => `• ${c.food_name} — ${c.grams} g`),
+      "",
+      "Préparation :",
+      ...r0.steps.map((s, i) => `${i + 1}. ${s}`),
+      "",
+      "Partagé depuis Mon plan alimentaire",
+    ];
+    const message = lines.join("\n");
+    try {
+      if (Platform.OS === "web") {
+        const nav: any = typeof navigator !== "undefined" ? navigator : null;
+        if (nav?.share) { await nav.share({ title: r0.name, text: message }); return; }
+        if (nav?.clipboard?.writeText) { await nav.clipboard.writeText(message); setToast("📋 Recette copiée dans le presse-papiers."); setTimeout(() => setToast(null), 3000); return; }
+        Alert.alert("Partage indisponible", "Utilisez l'application mobile pour partager cette recette.");
+        return;
+      }
+      await Share.share({ title: r0.name, message }, { dialogTitle: "Partager la recette", subject: r0.name });
+    } catch (e: any) {
+      if (e?.message && !/cancel/i.test(e.message)) Alert.alert("Partage impossible", e.message);
+    }
+  };
 
   const run = async (label: string, action: string, value?: any, mood?: string) => {
     setBusy(label);
@@ -86,6 +143,42 @@ export default function RecipeScreen() {
     } catch (e: any) {
       Alert.alert("Impossible", e?.message ?? "Erreur");
     } finally { setBusy(null); }
+  };
+
+  const pickPhoto = async (fromCamera: boolean) => {
+    try {
+      const perm = fromCamera ? await ImagePicker.getCameraPermissionsAsync() : await ImagePicker.getMediaLibraryPermissionsAsync();
+      let status = perm.status;
+      if (status !== "granted") {
+        if (!perm.canAskAgain && status === "denied") {
+          Alert.alert("Accès refusé", fromCamera ? "Autorisez l'appareil photo dans les réglages pour photographier vos plats." : "Autorisez l'accès aux photos dans les réglages.", [{ text: "Annuler", style: "cancel" }, { text: "Ouvrir les réglages", onPress: () => Linking.openSettings() }]);
+          return;
+        }
+        const req = fromCamera ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
+        status = req.status;
+        if (status !== "granted") return;
+      }
+      const res = fromCamera
+        ? await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.6, allowsEditing: true, aspect: [4, 3] })
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.6, allowsEditing: true, aspect: [4, 3] });
+      if (res.canceled || !res.assets?.[0]) return;
+      const a = res.assets[0];
+      setBusy("photo");
+      await uploadPhoto(week, dayIdx, mealKey, a.uri, a.fileName ?? "photo.jpg", a.mimeType ?? "image/jpeg");
+      setToast("📸 Photo enregistrée pour ce plat.");
+      setTimeout(() => setToast(null), 3000);
+    } catch (e: any) {
+      Alert.alert("Photo impossible", e?.message ?? "Erreur");
+    } finally { setBusy(null); }
+  };
+
+  const choosePhoto = () => {
+    Alert.alert("Photo de ce plat", "Gardez un souvenir appétissant de votre assiette : elle illustrera la recette.", [
+      { text: "Appareil photo", onPress: () => pickPhoto(true) },
+      { text: "Galerie", onPress: () => pickPhoto(false) },
+      ...(meal?.photo ? [{ text: "Retirer la photo", style: "destructive" as const, onPress: async () => { setBusy("photo"); try { await removePhoto(week, dayIdx, mealKey); } finally { setBusy(null); } } }] : []),
+      { text: "Annuler", style: "cancel" as const },
+    ]);
   };
 
   if (!meal || !day || !meal.recipe) {
@@ -100,15 +193,21 @@ export default function RecipeScreen() {
 
   return (
     <View style={styles.root}>
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={styles.hero}>
-          <Image source={r.image} style={styles.heroImg} contentFit="cover" transition={300} />
+          <Image source={photoUrl(meal.photo) ?? r.image} style={styles.heroImg} contentFit="cover" transition={300} />
           <LinearGradient colors={["rgba(10,10,10,0.2)", "transparent", "rgba(10,10,10,0.95)"]} style={styles.scrim} />
           <Pressable testID="recipe-close" onPress={() => router.back()} style={[styles.close, { top: insets.top + 12 }]}>
-            <LucideIcon name="x" size={20} color={themeColors.onSurface} />
+            <LucideIcon name="x" size={20} color={themeColors.surfaceInverse} />
           </Pressable>
           <Pressable testID="recipe-favorite" onPress={() => run("fav", "favorite")} style={[styles.favBtn, { top: insets.top + 12 }]}>
-            <LucideIcon name="heart" size={18} color={meal.favorite ? themeColors.warning : themeColors.onSurface} />
+            <LucideIcon name="heart" size={18} color={meal.favorite ? themeColors.warning : themeColors.surfaceInverse} />
+          </Pressable>
+          <Pressable testID="recipe-share" onPress={shareRecipe} style={[styles.favBtn, { top: insets.top + 12, right: 112 }]}>
+            <LucideIcon name="share-2" size={18} color={themeColors.surfaceInverse} />
+          </Pressable>
+          <Pressable testID="recipe-photo" onPress={Platform.OS === "web" ? () => pickPhoto(false) : choosePhoto} disabled={busy === "photo"} style={[styles.favBtn, { top: insets.top + 12, right: 64 }]}>
+            {busy === "photo" ? <ActivityIndicator size="small" color={themeColors.warning} /> : <LucideIcon name="camera" size={18} color={meal.photo ? themeColors.warning : themeColors.surfaceInverse} />}
           </Pressable>
           <View style={styles.heroContent}>
             <Text style={styles.eyebrow}>{day.day} · {MEAL_LABELS[mealKey]}</Text>
@@ -189,6 +288,17 @@ export default function RecipeScreen() {
             </View>
           </>
         )}
+
+        <View style={styles.feedback} testID="note-card">
+          <Text style={styles.feedbackTitle}>📝 Ma note personnelle</Text>
+          <TextInput testID="note-input" value={note} onChangeText={setNote} multiline placeholder="Une astuce, un ajustement, ce que vous avez adoré…" placeholderTextColor={themeColors.muted} style={styles.noteInput} />
+          <View style={styles.noteRow}>
+            <Text style={styles.noteHint}>Privée, liée à cette recette : vous la retrouverez à chaque fois qu’elle revient au menu.</Text>
+            <Pressable testID="note-save" disabled={busy === "note" || note.trim() === savedNote} onPress={saveNote} style={[styles.noteSave, note.trim() === savedNote && { opacity: 0.5 }]}>
+              {busy === "note" ? <ActivityIndicator size="small" color={themeColors.onBrandPrimary} /> : <Text style={styles.noteSaveText}>Enregistrer</Text>}
+            </Pressable>
+          </View>
+        </View>
 
         <View style={styles.feedback}>
           <Text style={styles.feedbackTitle}>Votre avis sur ce repas</Text>
