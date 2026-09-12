@@ -1,0 +1,162 @@
+{
+  "app_name": "Mon plan alimentaire",
+  "personality": "6 Glass / Luxe DARK",
+  "personality_one_liner": "A sophisticated, editorial-driven premium dark theme that feels like high-end French nutrition coaching.",
+  "color": {
+    "surface": "#0A0A0A",
+    "onSurface": "#F2F2F2",
+    "surfaceSecondary": "#141414",
+    "onSurfaceSecondary": "#E6E6E6",
+    "surfaceTertiary": "#1F1F1F",
+    "onSurfaceTertiary": "#CCCCCC",
+    "surfaceInverse": "#F5F5F0",
+    "onSurfaceInverse": "#0A0A0A",
+    "brand": "#4E6B4A",
+    "brandPrimary": "#4E6B4A",
+    "onBrandPrimary": "#F2F2F2",
+    "brandSecondary": "#3A5237",
+    "onBrandSecondary": "#F2F2F2",
+    "brandTertiary": "#243621",
+    "onBrandTertiary": "#DDEED9",
+    "success": "#4E6B4A",
+    "onSuccess": "#F2F2F2",
+    "warning": "#B08D57",
+    "onWarning": "#0A0A0A",
+    "error": "#8C4A4A",
+    "onError": "#FAD6D6",
+    "info": "#4D5B5E",
+    "onInfo": "#D6E0E2",
+    "border": "#292929",
+    "borderStrong": "#3D3D3D",
+    "divider": "#1A1A1A",
+    "muted": "#8A8A8A",
+    "onBrand": "#F2F2F2"
+  },
+  "typography": {
+    "displayFontFamily": "Fraunces",
+    "textFontFamily": "Satoshi",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Generous spacing. Let typography and glassmorphism breathe. Use lg/xl margins heavily to keep a cinematic feel.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": 0,
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": "true",
+    "do's": [
+      "Use heavy translucent glass for sticky headers, bottom tab bar, and bottom sheet handles.",
+      "Use expo-blur on featured meal cards overlaid on food photography.",
+      "Ensure a dark tint backing behind the blur so text remains legible."
+    ],
+    "dont's": [
+      "Don't blur dense data input sections (like macro configuration sliders).",
+      "Don't apply glass to basic list rows."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Home",
+      "purpose": "A premium dashboard showing today's meal plan and a snapshot of current progress.",
+      "states": {
+        "loading": "Cinematic dark skeleton pulses.",
+        "empty": "Elegant prompt to start a new weekly program.",
+        "error": "Muted error text with a retry button."
+      },
+      "layout": "Large hero card with full-bleed food imagery and glassmorphism overlay showing today's current meal. Below, an elegant weight progression mini-chart. Horizontal scroll for weekly timeline. Sticky bottom tab bar with glass effect."
+    },
+    {
+      "name": "Planner",
+      "purpose": "Weekly meal planner view and configuration hub.",
+      "states": {
+        "loading": "Skeleton rows of meal slots.",
+        "empty": "Illustration of an empty plate prompting to generate a plan.",
+        "error": "Toast notification over cached data."
+      },
+      "layout": "Vertical timeline of day cards. Each card can expand to show specific macros. A sticky, glass-backed 'Generate/Edit Plan' FAB at the bottom right. Tapping the FAB opens a Gorhom bottom sheet for adjusting targets via sliders, selecting program duration, and toggling rules (e.g., max fruit/day)."
+    },
+    {
+      "name": "Inventory",
+      "purpose": "Manage pantry, fridge, and freezer with priority tagging.",
+      "states": {
+        "loading": "Skeleton items.",
+        "empty": "Minimalist 'Pantry is empty' message.",
+        "error": "Standard retry state."
+      },
+      "layout": "Segmented control at the top (Frigo / Congélateur / Placards). List layout for items. Items have a sleek right-aligned toggle (⚡ Priorité) using the warning (antique gold) token to highlight items to eat first."
+    },
+    {
+      "name": "Cooking Mode",
+      "purpose": "Distraction-free, immersive recipe view.",
+      "states": {
+        "loading": "Image skeleton.",
+        "empty": "N/A",
+        "error": "Error loading recipe."
+      },
+      "layout": "Full-bleed background image of the dish. A heavy gradient-to-dark scrim (top to bottom) overlays it. Oversized display serif (Fraunces) for the recipe name. Scrollable step-by-step instructions. A sticky primary CTA at the bottom to mark as 'Completed'."
+    }
+  ],
+  "images": {
+    "home_hero": {
+      "url": "https://images.unsplash.com/photo-1667499745120-f9bcef8f584e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTN8MHwxfHNlYXJjaHwxfHxkYXJrJTIwbW9vZHklMjBoZWFsdGh5JTIwbWVhbCUyMHByZXAlMjBmb29kJTIwcGhvdG9ncmFwaHl8ZW58MHx8fHwxNzg5MjEzNTIxfDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Dark moody healthy meal prep"
+    },
+    "empty_state_plate": {
+      "url": "https://images.unsplash.com/photo-1567934124115-2eca8953796b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MDV8MHwxfHNlYXJjaHwxfHxlbXB0eSUyMHBsYXRlJTIwZGFyayUyMGJhY2tncm91bmQlMjBtaW5pbWFsaXN0fGVufDB8fHx8MTc4OTIxMzUyMXww&ixlib=rb-4.1.0&q=85",
+      "alt": "Minimalist empty plate on dark wood table"
+    },
+    "pantry_bg": {
+      "url": "https://images.unsplash.com/photo-1579113800032-c38bd7635818?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzd8MHwxfHNlYXJjaHwxfHxmcmVzaCUyMG9yZ2FuaWMlMjB2ZWdldGFibGVzJTIwZGFyayUyMHN1cmZhY2V8ZW58MHx8fHwxNzg5MjEzNTIxfDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Fresh organic vegetables on dark surface"
+    }
+  },
+  "haptics": {
+    "events": {
+      "primary_cta": "impactMedium",
+      "priority_toggle": "impactLight",
+      "macro_slider_drag": "selection",
+      "tab_change": "selection"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Language is strictly French for all UI text, as requested ('Mon plan alimentaire').",
+    "Applies Glass / Luxe DARK personality. Do NOT use standard Material UI cards or harsh shadows.",
+    "BANNED: No blues, no purples, no indigos. The palette uses deep obsidian backgrounds, sage/moss green as the primary brand color, and antique gold as a warning/highlight accent.",
+    "Use a vertical top-to-bottom three-stop linear gradient scrim over all images (transparent -> 20% surfaceInverse -> 80%+ surfaceInverse). Text layered on top must strictly use onSurfaceInverse to guarantee readability.",
+    "For complex configuration sections (e.g., target nutritional settings by meal and food categories, weekly length settings), strongly prefer Gorhom bottom sheets over cluttering main views.",
+    "Use the 'empty_state_plate' image for zero-data states, paired with an elegant display font header.",
+    "All primary CTA buttons pinned to the bottom of the screen must sit within a fixed container (clear of the scroll view) over a glass-blurred background or solid 'surface' background."
+  ]
+}
