@@ -14,7 +14,7 @@ import { AuthProvider, useAuth } from "@/src/auth";
 import { ProgramProvider } from "@/src/program-store";
 import { BrandLogo } from "@/src/components/BrandLogo";
 import Animated, { ZoomIn, FadeInUp } from "react-native-reanimated";
-import { colors, useTheme, loadThemePreference } from "@/src/theme";
+import { colors, useTheme, loadThemePreference, loadTextScale } from "@/src/theme";
 
 LogBox.ignoreAllLogs(true);
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -80,7 +80,7 @@ export default function RootLayout() {
   const { scheme, colors: c } = useTheme();
 
   const load = useCallback(async () => {
-    await Promise.all([prewarmIcons(), loadThemePreference()]);
+    await Promise.all([prewarmIcons(), loadThemePreference(), loadTextScale()]);
     setReady(true);
     SplashScreen.hideAsync().catch(() => {});
   }, []);

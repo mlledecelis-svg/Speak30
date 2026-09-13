@@ -803,6 +803,59 @@ async def batch_cooking(program_id: str, week: int, user: User = Depends(get_cur
 
 
 # ---------------------------------------------------------------------------
+# Sauvegarde / restauration
+# ---------------------------------------------------------------------------
+@api_router.get("/backup")
+async def export_backup(user: User = Depends(get_current_user)):
+    targets = await _targets(user.user_id)
+    program = await db.programs.find_one({"user_id": user.user_id, "active": True, **NEW_FORMAT}, {"_id": 0, "user_id": 0})
+    inventory = await db.inventory.find({"user_id": user.user_id}, {"_id": 0, "user_id": 0}).to_list(500)
+    weights = await db.weights.find({"user_id": user.user_id}, {"_id": 0, "user_id": 0}).to_list(2000)
+    prefs = await _prefs(user.user_id)
+    prefs.pop("user_id", None)
+    return _serialize({"version": 1, "exported_at": datetime.now(timezone.utc), "targets": targets, "program": _serialize(program) if program else None, "inventory": [_serialize(i) for i in inventory], "weights": [_serialize(w) for w in weights], "preferences": prefs})
+
+
+@api_router.post("/backup/restore")
+async def restore_backup(payload: Dict[str, Any], user: User = Depends(get_current_user)):
+    if not isinstance(payload, dict) or payload.get("version") != 1:
+        raise HTTPException(status_code=400, detail="Fichier de sauvegarde invalide.")
+    restored = []
+    if isinstance(payload.get("targets"), dict):
+        doc = normalize_program(payload["targets"])
+        doc["user_id"] = user.user_id
+        await db.targets.update_one({"user_id": user.user_id}, {"$set": doc}, upsert=True)
+        restored.append("cibles")
+    prog = payload.get("program")
+    if isinstance(prog, dict) and prog.get("weeks") and "shopping_checked" in prog:
+        prog = dict(prog)
+        prog["user_id"] = user.user_id
+        prog["id"] = str(uuid.uuid4())
+        prog["name"] = f"{prog.get('name', 'Programme')} (restauré)"
+        prog["created_at"] = datetime.now(timezone.utc)
+        prog["active"] = True
+        await db.programs.update_many({"user_id": user.user_id}, {"$set": {"active": False}})
+        await db.programs.insert_one(prog)
+        restored.append("programme")
+    if isinstance(payload.get("inventory"), list):
+        for it in payload["inventory"]:
+            if isinstance(it, dict) and it.get("name"):
+                await db.inventory.update_one({"user_id": user.user_id, "name": it["name"]}, {"$set": {**{k: v for k, v in it.items() if k != "id"}, "user_id": user.user_id, "id": it.get("id") or str(uuid.uuid4())}}, upsert=True)
+        restored.append("maison")
+    if isinstance(payload.get("weights"), list):
+        for w in payload["weights"]:
+            if isinstance(w, dict) and w.get("date") and w.get("weight") is not None:
+                await db.weights.update_one({"user_id": user.user_id, "date": w["date"]}, {"$set": {"weight": float(w["weight"]), "user_id": user.user_id, "id": w.get("id") or str(uuid.uuid4())}}, upsert=True)
+        restored.append("pesées")
+    if isinstance(payload.get("preferences"), dict):
+        p = {k: v for k, v in payload["preferences"].items() if k in ("favorites", "avoid", "notes", "goal_weight", "water_goal", "photos")}
+        if p:
+            await db.preferences.update_one({"user_id": user.user_id}, {"$set": p}, upsert=True)
+            restored.append("préférences")
+    return {"ok": True, "restored": restored}
+
+
+# ---------------------------------------------------------------------------
 # Weight tracking
 # ---------------------------------------------------------------------------
 @api_router.get("/weights")

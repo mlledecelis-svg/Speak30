@@ -175,6 +175,14 @@ export default function Home() {
             <Text style={{ fontSize: 36 }}>🌿</Text>
             <Text style={styles.emptyTitle}>Votre journée prendra vie ici</Text>
             <Text style={styles.emptyText}>Générez votre programme pour retrouver chaque jour vos repas, vos recettes et les raccourcis cuisine au même endroit.</Text>
+            <View style={{ alignSelf: "stretch", marginTop: 16, gap: 8 }} testID="start-guide">
+              {[["1", "Réglez vos cibles", "Les portions prescrites par votre diététicienne (ou collez le texte du planning)."], ["2", "Générez vos menus", "Recettes, temps et étapes calculés automatiquement, semaine par semaine."], ["3", "Faites vos courses", "La liste par rayon se remplit toute seule ; cochez au fil du magasin."]].map(([n, t, d]) => (
+                <View key={n} style={{ flexDirection: "row", gap: 12, alignItems: "flex-start" }}>
+                  <View style={{ width: 26, height: 26, borderRadius: 999, backgroundColor: themeColors.warning, alignItems: "center", justifyContent: "center" }}><Text style={{ color: themeColors.onWarning, fontWeight: "700", fontSize: 12 }}>{n}</Text></View>
+                  <View style={{ flex: 1 }}><Text style={{ color: themeColors.onSurface, fontSize: 13, fontWeight: "600" }}>{t}</Text><Text style={{ color: themeColors.muted, fontSize: 12, lineHeight: 17 }}>{d}</Text></View>
+                </View>
+              ))}
+            </View>
             <Pressable testID="home-cta-generate" onPress={() => router.push("/config")} style={styles.emptyBtn}>
               <Text style={styles.emptyBtnText}>Créer mon programme</Text>
             </Pressable>

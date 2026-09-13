@@ -5,7 +5,7 @@ import { useRouter } from "expo-router";
 import LucideIcon from "@react-native-vector-icons/lucide";
 import { Image } from "expo-image";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { exportWeekPdf } from "@/src/export";
+import { exportWeekPdf, exportFridgeSheet, exportProgramPdf } from "@/src/export";
 import { api } from "@/src/api";
 
 import { makeStyles, colors as themeColors } from "@/src/theme";
@@ -56,6 +56,9 @@ const useStyles = makeStyles((colors) => ({
   fab: { position: "absolute", right: 20, bottom: 20, backgroundColor: colors.brandPrimary, borderRadius: 999, paddingHorizontal: 20, paddingVertical: 14, flexDirection: "row", alignItems: "center", gap: 8, shadowColor: "#000", shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 8 },
   fabText: { color: colors.onBrandPrimary, fontWeight: "600", letterSpacing: 0.3 },
   toast: { marginHorizontal: 24, marginBottom: 10, padding: 12, borderRadius: 12, backgroundColor: colors.brandTertiary },
+  printRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginHorizontal: 24, marginBottom: 12 },
+  printChip: { paddingHorizontal: 12, height: 36, borderRadius: 999, backgroundColor: colors.brandTertiary, borderWidth: 1, borderColor: colors.brandPrimary, alignItems: "center", justifyContent: "center" },
+  printText: { color: colors.onBrandTertiary, fontSize: 12, fontWeight: "600" },
   searchBox: { marginHorizontal: 24, marginBottom: 12, flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, borderRadius: 999, paddingHorizontal: 14, height: 44 },
   searchInput: { flex: 1, color: colors.onSurface, fontSize: 14 },
   resultMeta: { color: colors.warning, fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: "700", paddingHorizontal: 24, marginBottom: 8 },
@@ -74,6 +77,7 @@ export default function Planner() {
   const { program, loading, mealAction, todayIndex, photoUrl, canUndo } = useProgram();
   const [exporting, setExporting] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [week, setWeek] = useState(currentWeekIndex(program));
   const [dayIdx, setDayIdx] = useState(todayIndex);
@@ -106,12 +110,19 @@ export default function Planner() {
     }
   };
 
-  const exportPdf = async () => {
+  const exportPdf = async (kind: "fridge" | "week" | "all" = "week") => {
     if (!program) return;
     setExporting(true);
+    setPrintOpen(false);
     try {
-      const shopping = await api<any>(`/programs/${program.id}/shopping/${week}`).catch(() => null);
-      await exportWeekPdf(program, week, shopping);
+      if (kind === "fridge") await exportFridgeSheet(program, week);
+      else if (kind === "all") {
+        const all = await Promise.all(program.weeks.map((_, i) => api<any>(`/programs/${program.id}/shopping/${i}`).catch(() => null)));
+        await exportProgramPdf(program, all);
+      } else {
+        const shopping = await api<any>(`/programs/${program.id}/shopping/${week}`).catch(() => null);
+        await exportWeekPdf(program, week, shopping);
+      }
     } catch (e: any) {
       Alert.alert("Export impossible", e?.message ?? "Erreur");
     } finally { setExporting(false); }
@@ -147,7 +158,7 @@ export default function Planner() {
               </Pressable>
             )}
             {program && (
-              <Pressable testID="export-pdf" onPress={exportPdf} disabled={exporting} style={styles.iconBtn}>
+              <Pressable testID="export-pdf" onPress={() => setPrintOpen((o) => !o)} disabled={exporting} style={styles.iconBtn}>
                 {exporting ? <ActivityIndicator size="small" color={themeColors.warning} /> : <LucideIcon name="printer" size={18} color={themeColors.onSurface} />}
               </Pressable>
             )}
@@ -190,6 +201,13 @@ export default function Planner() {
         ) : (
           <>
             {toast && <View style={styles.toast}><Text style={styles.toastText}>{toast}</Text></View>}
+            {printOpen && (
+              <View style={styles.printRow} testID="print-options">
+                {[{ k: "fridge", l: "🧲 Fiche frigo (2 pages)" }, { k: "week", l: "📄 Semaine + courses" }, { k: "all", l: "📚 Tout le programme" }].map((o) => (
+                  <Pressable key={o.k} testID={`print-${o.k}`} onPress={() => exportPdf(o.k as any)} style={styles.printChip}><Text style={styles.printText}>{o.l}</Text></Pressable>
+                ))}
+              </View>
+            )}
             {searchOpen && (
               <View style={styles.searchBox}>
                 <LucideIcon name="search" size={16} color={themeColors.muted} />

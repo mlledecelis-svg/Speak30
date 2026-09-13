@@ -106,6 +106,12 @@ Application mobile (Expo React Native) portage de https://elegant-starlight-eebd
 - **Semaine en cours automatique** (calculée depuis la date de création du programme) sur Accueil, Menus et Courses
 - Déjà couvert par les itérations précédentes : recherche recettes, photos, favoris, mode cuisine, suivi poids avec tendance, badges/défis, coller texte, prépa (batch cooking), repas extérieur
 
+## Itération 9 — impression frigo & confort (livrée)
+- **Fiche frigo (2 pages max)** : Menus → 🖨 → « Fiche frigo » : page 1 tableau 7 jours × 4 repas avec grammages, page 2 exécution condensée des déjeuners/dîners (2 colonnes, étapes numérotées) ; + « Semaine + courses » et « Tout le programme »
+- **Taille du texte** (Réglages : Normal / Grand / Très grand) appliquée à toute l'app via `makeStyles`, persistante
+- **Sauvegarde** : export JSON (`GET /backup`) et restauration (`POST /backup/restore`) depuis Réglages
+- **Guide de démarrage** 3 étapes sur l'Accueil sans programme
+
 ## Stack technique
 - Frontend : Expo Router 57, Reanimated 4, gorhom/bottom-sheet, expo-image, expo-linear-gradient, @react-native-vector-icons/lucide, expo-blur
 - Backend : FastAPI, Motor (MongoDB), bcrypt, httpx (Emergent Google Auth)

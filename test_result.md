@@ -195,3 +195,6 @@ agent_communication:
 
   - agent: "main"
     message: "Itération 8 (parité nouvelle version du site) : Taille du foyer sur Courses (GET shopping/{week}?household=1..6, chips household-1/2/4, quantités ×n) ; Partager/copier la liste (champ text dans la réponse shopping, bouton share-shopping) ; Annuler la dernière modification (action 'undo' ; snapshot 'undo' sur le programme après replace/quick/replace_component/set_component/swap_day ; can_undo dans la réponse ; boutons undo-button (Menus) et recipe-undo (Recette)) ; badges lifestyle sur les recettes (recipe.lifestyle : Sans cuisson / Sans four / À emporter / Air fryer OK ; testID lifestyle-<badge>) ; semaine en cours automatique selon la date de création du programme (Accueil/Menus/Courses)."
+
+  - agent: "main"
+    message: "Itération 9 : Impression (Menus → 🖨 export-pdf ouvre print-options : print-fridge = fiche frigo 2 pages (page 1 tableau 7 jours × 4 repas, page 2 exécution condensée des recettes en 2 colonnes), print-week = semaine + courses, print-all = tout le programme) ; Taille du texte (Réglages text-scale-1/1.15/1.3, appliqué via makeStyles, persistant) ; Sauvegarde (GET /api/backup, POST /api/backup/restore ; Réglages backup-export / backup-input / backup-restore / backup-msg) ; Guide de démarrage 3 étapes (start-guide sur l'Accueil sans programme)."

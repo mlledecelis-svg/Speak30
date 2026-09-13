@@ -115,6 +115,22 @@ export async function setThemePreference(pref: ThemePreference) {
   } catch {}
 }
 
+export type TextScale = 1 | 1.15 | 1.3;
+const SCALE_KEY = "text_scale";
+let textScale: TextScale = 1;
+export function getTextScale(): TextScale { return textScale; }
+export async function setTextScale(s: TextScale) {
+  textScale = s;
+  listeners.forEach((l) => l());
+  try { await AsyncStorage.setItem(SCALE_KEY, String(s)); } catch {}
+}
+export async function loadTextScale() {
+  try {
+    const v = Number(await AsyncStorage.getItem(SCALE_KEY));
+    if (v === 1.15 || v === 1.3) { textScale = v; listeners.forEach((l) => l()); }
+  } catch {}
+}
+
 export function getThemePreference(): ThemePreference {
   return preference;
 }
@@ -123,7 +139,7 @@ Appearance.addChangeListener?.(() => {
   if (preference === "system") applyPreference("system");
 });
 
-export function useTheme(): { scheme: ColorScheme; colors: ThemeColors; preference: ThemePreference } {
+export function useTheme(): { scheme: ColorScheme; colors: ThemeColors; preference: ThemePreference; textScale: TextScale } {
   const [, force] = useState(0);
   useEffect(() => {
     const l = () => force((n) => n + 1);
@@ -132,7 +148,7 @@ export function useTheme(): { scheme: ColorScheme; colors: ThemeColors; preferen
       listeners.delete(l);
     };
   }, []);
-  return { scheme: currentScheme, colors: themes[currentScheme] as ThemeColors, preference };
+  return { scheme: currentScheme, colors: themes[currentScheme] as ThemeColors, preference, textScale };
 }
 
 /** Couleurs du thème courant (lecture dynamique) — utilisable hors hooks. */
@@ -144,8 +160,20 @@ export function makeStyles<T extends StyleSheet.NamedStyles<T> | StyleSheet.Name
   factory: (colors: ThemeColors) => T & StyleSheet.NamedStyles<any>,
 ): () => T {
   return function useStyles(): T {
-    const { colors } = useTheme();
-    return useMemo(() => StyleSheet.create(factory(colors)), [colors]);
+    const { colors, textScale: ts } = useTheme();
+    return useMemo(() => {
+      const raw: any = factory(colors);
+      if (ts !== 1) {
+        for (const k of Object.keys(raw)) {
+          const st = raw[k];
+          if (st && typeof st === "object") {
+            if (typeof st.fontSize === "number") st.fontSize = Math.round(st.fontSize * ts * 10) / 10;
+            if (typeof st.lineHeight === "number") st.lineHeight = Math.round(st.lineHeight * ts * 10) / 10;
+          }
+        }
+      }
+      return StyleSheet.create(raw);
+    }, [colors, ts]);
   };
 }
 

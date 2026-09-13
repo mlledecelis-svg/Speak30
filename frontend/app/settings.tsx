@@ -1,9 +1,12 @@
-import { View, Text, Pressable, ScrollView } from "react-native";
+import { useState } from "react";
+import { View, Text, Pressable, ScrollView, TextInput, Share, Platform, Alert, ActivityIndicator } from "react-native";
+import { api } from "@/src/api";
+import { useProgram } from "@/src/program-store";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import LucideIcon from "@react-native-vector-icons/lucide";
 
-import { makeStyles, useTheme, setThemePreference, ThemePreference } from "@/src/theme";
+import { makeStyles, useTheme, setThemePreference, ThemePreference, setTextScale, TextScale } from "@/src/theme";
 import { useAuth } from "@/src/auth";
 import { BrandLogo } from "@/src/components/BrandLogo";
 
@@ -37,8 +40,39 @@ export default function SettingsScreen() {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { colors, preference } = useTheme();
+  const { colors, preference, textScale } = useTheme();
   const { user, logout } = useAuth();
+  const { refresh } = useProgram();
+  const [restoreText, setRestoreText] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const exportBackup = async () => {
+    setBusy("export");
+    try {
+      const data = await api<any>("/backup");
+      const json = JSON.stringify(data);
+      if (Platform.OS === "web") {
+        const nav: any = typeof navigator !== "undefined" ? navigator : null;
+        if (nav?.clipboard?.writeText) { await nav.clipboard.writeText(json); setMsg("Sauvegarde copiée dans le presse-papiers : collez-la dans un fichier ou une note."); }
+        else setMsg("Copie indisponible sur ce navigateur.");
+      } else {
+        await Share.share({ title: "Sauvegarde Mon plan alimentaire", message: json });
+      }
+    } catch (e: any) { setMsg(e?.message ?? "Erreur"); } finally { setBusy(null); }
+  };
+
+  const restoreBackup = async () => {
+    if (!restoreText.trim()) return;
+    setBusy("restore");
+    try {
+      const payload = JSON.parse(restoreText);
+      const res = await api<{ restored: string[] }>("/backup/restore", { method: "POST", body: JSON.stringify(payload) });
+      setMsg(`Restauré : ${res.restored.join(", ")}.`);
+      setRestoreText("");
+      refresh();
+    } catch (e: any) { Alert.alert("Import impossible", e?.message?.includes("JSON") ? "Le texte collé n'est pas une sauvegarde valide." : e?.message ?? "Erreur"); } finally { setBusy(null); }
+  };
 
   return (
     <View style={styles.root}>
@@ -60,6 +94,31 @@ export default function SettingsScreen() {
               {preference === o.key && <LucideIcon name="check" size={16} color={colors.brandPrimary} />}
             </Pressable>
           ))}
+        </View>
+
+        <View style={styles.card} testID="text-size-card">
+          <Text style={styles.cardTitle}>Taille du texte</Text>
+          <Text style={styles.cardSub}>Pour une lecture confortable en cuisine, agrandissez tous les textes de l’application.</Text>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            {([{ v: 1, l: "Normal" }, { v: 1.15, l: "Grand" }, { v: 1.3, l: "Très grand" }] as { v: TextScale; l: string }[]).map((o) => (
+              <Pressable key={o.v} testID={`text-scale-${o.v}`} onPress={() => setTextScale(o.v)} style={[styles.option, { flex: 1, marginBottom: 0, justifyContent: "center" }, textScale === o.v && styles.optionOn]}>
+                <Text style={styles.optionLabel}>{o.l}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.card} testID="backup-card">
+          <Text style={styles.cardTitle}>Sauvegarde</Text>
+          <Text style={styles.cardSub}>Exportez vos cibles, programme, maison, pesées et préférences ; collez le texte ci-dessous pour les restaurer sur un autre appareil.</Text>
+          <Pressable testID="backup-export" onPress={exportBackup} disabled={!!busy} style={[styles.option, { justifyContent: "center" }]}>
+            {busy === "export" ? <ActivityIndicator color={colors.warning} /> : <Text style={styles.optionLabel}>⬇ Exporter ma sauvegarde</Text>}
+          </Pressable>
+          <TextInput testID="backup-input" value={restoreText} onChangeText={setRestoreText} multiline placeholder="Collez ici une sauvegarde exportée…" placeholderTextColor={colors.muted} style={{ backgroundColor: colors.surfaceTertiary, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12, color: colors.onSurface, minHeight: 70, marginBottom: 8 }} />
+          <Pressable testID="backup-restore" onPress={restoreBackup} disabled={!!busy || !restoreText.trim()} style={[styles.option, { justifyContent: "center", marginBottom: 0 }, !restoreText.trim() && { opacity: 0.5 }]}>
+            {busy === "restore" ? <ActivityIndicator color={colors.warning} /> : <Text style={styles.optionLabel}>⬆ Restaurer</Text>}
+          </Pressable>
+          {msg && <Text style={[styles.cardSub, { marginTop: 10, marginBottom: 0 }]} testID="backup-msg">{msg}</Text>}
         </View>
 
         <View style={[styles.card, { alignItems: "center" }]} testID="about-card">
