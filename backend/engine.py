@@ -223,7 +223,18 @@ def recipe_name(bp: Dict[str, Any], comp: Dict[str, Dict[str, Any]]) -> str:
 
 def make_recipe(bp: Dict[str, Any], comp: Dict[str, Dict[str, Any]], steps: List[str], difficulty: str, mode: Optional[str] = None) -> Dict[str, Any]:
     minutes = bp["minutes"] + DIFF_EXTRA[difficulty]
+    m = bp["method"]
+    badges = []
+    if m in ("fresh_bowl", "bowl", "warm_salad", "fresh_toast", "sandwich", "cold_soup", "overnight", "granola_bowl", "fruit_bowl", "layered_bf", "smoothie", "savory_plate", "snack"):
+        badges.append("Sans cuisson")
+    if m not in ("oven", "gratin", "layered", "parmentier", "quiche", "tian", "stuffed", "potato_stuffed", "papillote", "roast", "roast_egg", "baked_oats", "provencal", "eggs_cocotte"):
+        badges.append("Sans four")
+    if m in ("fresh_bowl", "bowl", "warm_salad", "sandwich", "fresh_toast", "taco_bowl", "burger_bowl", "korean_bowl", "frittata", "quiche", "overnight", "verrine", "layered_bf"):
+        badges.append("À emporter")
+    if m in ("oven", "roast", "skewers", "croquettes", "meatballs", "stuffed", "potato_stuffed", "gratin"):
+        badges.append("Air fryer OK")
     return {
+        "lifestyle": badges,
         "blueprint_id": bp["id"], "name": recipe_name(bp, comp), "method": bp["method"], "image": IMG.get(bp["image"], IMG["bowl"]),
         "steps": steps, "minutes": minutes, "difficulty": difficulty, "difficulty_label": DIFF_LABEL[difficulty],
         "extras": ["eau", "sel", "poivre"] + list(bp["extras"]), "quick": bool(bp["quick"]) or minutes <= 15, "moods": bp["moods"], "mode": mode,
@@ -477,7 +488,7 @@ def build_snack(ctx: Ctx, day_state: Dict[str, Any]) -> Optional[Dict[str, Any]]
         return None
     names = " & ".join(c["food_name"].lower() for c in comps)
     recipe = {"blueprint_id": "snack", "name": f"Collation — {names[0].upper() + names[1:]}", "method": "snack", "image": IMG["snack"], "steps": build_snack_steps(comp), "minutes": 5,
-              "difficulty": "easy", "difficulty_label": "Facile", "extras": [], "quick": True, "moods": ["quick"], "mode": None}
+              "difficulty": "easy", "difficulty_label": "Facile", "extras": [], "quick": True, "moods": ["quick"], "mode": None, "lifestyle": ["Sans cuisson", "Sans four", "À emporter"]}
     return finalize_meal(recipe, comps, ctx)
 
 
@@ -548,7 +559,7 @@ def generate_plan(program: Dict[str, Any], pantry: List[Dict[str, Any]], prefs: 
 # ---------------------------------------------------------------------------
 # Liste de courses
 # ---------------------------------------------------------------------------
-def shopping_for_week(week: Dict[str, Any], pantry: List[Dict[str, Any]], checked: List[str], week_index: int) -> Dict[str, Any]:
+def shopping_for_week(week: Dict[str, Any], pantry: List[Dict[str, Any]], checked: List[str], week_index: int, household: int = 1) -> Dict[str, Any]:
     pantry_ids = {match_food_id(it.get("name", "")) for it in pantry or []}
     pantry_ids.discard(None)
     agg: Dict[str, Dict[str, Any]] = {}
@@ -561,8 +572,8 @@ def shopping_for_week(week: Dict[str, Any], pantry: List[Dict[str, Any]], checke
                 if not f:
                     continue
                 it = agg.setdefault(c["food_id"], {"food_id": c["food_id"], "name": f["name"], "section": f["section"], "cooked": 0.0, "raw": 0.0, "unit_label": f["unit_label"], "unit_g": f["unit_g"]})
-                it["cooked"] += c["grams"]
-                it["raw"] += c["grams"] * f["raw"]
+                it["cooked"] += c["grams"] * household
+                it["raw"] += c["grams"] * f["raw"] * household
     items = []
     home = []
     for it in agg.values():
@@ -584,7 +595,7 @@ def shopping_for_week(week: Dict[str, Any], pantry: List[Dict[str, Any]], checke
             sections.append({"name": sec, "items": sec_items})
     total = len(items)
     done = sum(1 for i in items if i["checked"])
-    return {"week": week_index, "total": total, "checked": done, "progress": (round(done * 100 / total) if total else 0), "sections": sections, "home": sorted(home, key=lambda x: _strip(x["name"]))}
+    return {"week": week_index, "household": household, "total": total, "checked": done, "progress": (round(done * 100 / total) if total else 0), "sections": sections, "home": sorted(home, key=lambda x: _strip(x["name"]))}
 
 
 # ---------------------------------------------------------------------------
@@ -652,6 +663,71 @@ def replace_meal(program: Dict[str, Any], week: Dict[str, Any], day_index: int, 
             continue
         return m
     return None
+
+
+def component_substitutes(meal: Dict[str, Any], index: int, program: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Équivalents possibles pour un aliment du repas, grammages convertis par portion."""
+    if index < 0 or index >= len(meal["components"]):
+        return []
+    c = meal["components"][index]
+    ctx = Ctx(normalize_program(program), [], {}, 0)
+    bp = next((b for b in MAIN_BLUEPRINTS + BREAKFAST_BLUEPRINTS if b["id"] == meal["recipe"]["blueprint_id"]), None)
+    eid = c.get("eq") or ""
+    src_eq = EQUIVALENCES.get(eid)
+    # ligne de programme correspondante pour connaître les options d'équivalence
+    key = {"lunch": "lunch", "dinner": "dinner", "snack": "snack"}.get(meal.get("_meal_key", ""), None)
+    options = [eid] if src_eq else []
+    for mk in ("lunch", "dinner", "snack"):
+        for ln in ctx.program[mk]["items"]:
+            if ln["category"] == c["category"] and eid in ln.get("options", []):
+                options = ln["options"]
+                break
+    if meal["recipe"].get("mode"):
+        for tpl in ("savory", "sweet_cereal", "sweet_bread"):
+            for ln in ctx.program["breakfast"][tpl]:
+                if ln["category"] == c["category"] and eid in ln.get("options", []):
+                    options = ln["options"]
+    out = []
+    seen = set()
+    for oid in options:
+        eq = EQUIVALENCES.get(oid)
+        if not eq:
+            continue
+        for fid in eq["foods"]:
+            if fid == c["food_id"] or fid in seen or not ctx.food_ok(fid):
+                continue
+            if bp and c["category"] in ("protein", "vegetables", "starch") and bp.get({"protein": "proteins", "vegetables": "vegetables", "starch": "starches"}[c["category"]]) is not None:
+                allowed = set(resolve_tag(bp[{"protein": "proteins", "vegetables": "vegetables", "starch": "starches"}[c["category"]]], c["category"]))
+                if fid not in allowed and oid == eid:
+                    pass  # même famille : toujours proposé
+                elif fid not in allowed:
+                    continue
+            seen.add(fid)
+            g = float(c["grams"]) * (eq["portion"] / (src_eq["portion"] if src_eq else eq["portion"]))
+            g = float(round(g / 5) * 5) if g >= 20 else float(round(g))
+            out.append({"food_id": fid, "food_name": FOODS[fid]["name"], "grams": g, "eq": oid, "eq_label": eq["label"], "same_family": oid == eid})
+    out.sort(key=lambda x: (not x["same_family"], x["food_name"]))
+    return out[:24]
+
+
+def set_component(meal: Dict[str, Any], index: int, food_id: str, program: Dict[str, Any], pantry) -> bool:
+    subs = component_substitutes(meal, index, program)
+    pick = next((s for s in subs if s["food_id"] == food_id), None)
+    if not pick:
+        return False
+    c = meal["components"][index]
+    c["food_id"], c["food_name"], c["grams"], c["eq"] = pick["food_id"], pick["food_name"], pick["grams"], pick["eq"]
+    ctx = Ctx(normalize_program(program), pantry, {}, 0)
+    bp = next((b for b in MAIN_BLUEPRINTS + BREAKFAST_BLUEPRINTS if b["id"] == meal["recipe"]["blueprint_id"]), None)
+    comp = {x["category"]: x for x in meal["components"]}
+    if bp:
+        prefix = (("Petit-déjeuner salé — " if meal["recipe"].get("mode") == "savory" else "Petit-déjeuner sucré — ") if meal["recipe"].get("mode") else "")
+        meal["recipe"]["name"] = prefix + recipe_name(bp, comp)
+        meal["recipe"]["steps"] = build_breakfast_steps(bp, comp) if bp in BREAKFAST_BLUEPRINTS else build_main_steps(bp, comp)
+    else:
+        meal["recipe"]["steps"] = build_snack_steps(comp)
+    meal["pantry_used"] = [x["food_name"] for x in meal["components"] if x["food_id"] in ctx.pantry]
+    return True
 
 
 def replace_component(meal: Dict[str, Any], index: int, program: Dict[str, Any], pantry, prefs, seed: int) -> bool:

@@ -31,6 +31,21 @@ const useStyles = makeStyles((colors) => ({
   compCat: { color: colors.muted, fontSize: 10, letterSpacing: 1, textTransform: "uppercase" },
   compFood: { color: colors.onSurface, fontSize: 14, marginTop: 2 },
   compGrams: { color: colors.warning, fontSize: 14, fontWeight: "600" },
+  compFamily: { color: colors.muted, fontSize: 10, textAlign: "right" },
+  subsBox: { paddingHorizontal: 14, paddingBottom: 12, backgroundColor: colors.surfaceTertiary },
+  subsTitle: { color: colors.muted, fontSize: 11, marginTop: 10, marginBottom: 8 },
+  subsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  subChip: { paddingHorizontal: 10, height: 30, borderRadius: 999, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
+  subChipOther: { borderStyle: "dashed" },
+  subText: { color: colors.onSurface, fontSize: 12 },
+  subGrams: { color: colors.warning, fontWeight: "600" },
+  peopleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, marginTop: 24, marginBottom: 10 },
+  peopleChips: { flexDirection: "row", gap: 6 },
+  peopleChip: { paddingHorizontal: 10, height: 30, borderRadius: 999, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
+  peopleChipOn: { backgroundColor: colors.brandTertiary, borderColor: colors.brandPrimary },
+  peopleText: { color: colors.muted, fontSize: 12, fontWeight: "600" },
+  peopleTextOn: { color: colors.onBrandTertiary },
+  peopleHint: { color: colors.muted, fontSize: 11, paddingHorizontal: 20, marginTop: -4, marginBottom: 8 },
   swapBtn: { width: 32, height: 32, borderRadius: 999, backgroundColor: colors.surfaceTertiary, alignItems: "center", justifyContent: "center" },
   homeDot: { width: 8, height: 8, borderRadius: 999, backgroundColor: colors.warning },
   step: { flexDirection: "row", gap: 12, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.divider },
@@ -104,11 +119,14 @@ export default function RecipeScreen() {
   const week = Number(params.week ?? 0);
   const dayIdx = Number(params.day ?? 0);
   const mealKey = String(params.meal ?? "lunch");
-  const { program, mealAction, photoUrl, uploadPhoto, removePhoto } = useProgram();
+  const { program, mealAction, photoUrl, uploadPhoto, removePhoto, canUndo } = useProgram();
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [outsideOpen, setOutsideOpen] = useState(false);
+  const [subsFor, setSubsFor] = useState<number | null>(null);
+  const [subs, setSubs] = useState<any[] | null>(null);
+  const [people, setPeople] = useState(1);
   const [savedNote, setSavedNote] = useState("");
 
   const day = program?.weeks?.[week]?.days?.[dayIdx];
@@ -119,6 +137,21 @@ export default function RecipeScreen() {
     if (!bpId) return;
     api<any>("/preferences").then((p) => { const n = p?.notes?.[bpId] ?? ""; setNote(n); setSavedNote(n); }).catch(() => {});
   }, [bpId]);
+
+  const openSubs = async (i: number) => {
+    if (subsFor === i) { setSubsFor(null); return; }
+    setSubsFor(i);
+    setSubs(null);
+    try {
+      const res = await api<any>(`/programs/${program!.id}/meals/substitutes?week=${week}&day=${dayIdx}&meal=${mealKey}&index=${i}`);
+      setSubs(res.substitutes);
+    } catch { setSubs([]); }
+  };
+
+  const applySub = async (i: number, food_id: string) => {
+    await run(`comp${i}`, "set_component", { index: i, food_id });
+    setSubsFor(null);
+  };
 
   const saveNote = async () => {
     if (!bpId) return;
@@ -247,24 +280,54 @@ export default function RecipeScreen() {
           <View style={styles.badge}><LucideIcon name="gauge" size={12} color={themeColors.warning} /><Text style={styles.badgeText}>{r.difficulty_label}</Text></View>
           {r.quick && <View style={styles.badge}><LucideIcon name="zap" size={12} color={themeColors.warning} /><Text style={styles.badgeText}>Rapide</Text></View>}
           {meal.pantry_used.length > 0 && <View style={[styles.badge, styles.badgeHome]}><LucideIcon name="house" size={12} color={themeColors.onBrandTertiary} /><Text style={[styles.badgeText, { color: themeColors.onBrandTertiary }]}>Déjà chez moi : {meal.pantry_used.join(", ")}</Text></View>}
+          {(r.lifestyle ?? []).map((b) => <View key={b} style={styles.badge} testID={`lifestyle-${b}`}><Text style={styles.badgeText}>{b === "Sans cuisson" ? "🥗" : b === "Sans four" ? "🍳" : b === "À emporter" ? "🥡" : "♨️"} {b}</Text></View>)}
           {meal.done && <View style={styles.badge}><LucideIcon name="check" size={12} color={themeColors.success} /><Text style={styles.badgeText}>Fait</Text></View>}
         </View>
 
         {toast && <View style={styles.toast}><Text style={styles.toastText}>{toast}</Text></View>}
 
-        <Text style={styles.sectionTitle}>Dans votre assiette</Text>
+        <View style={styles.peopleRow}>
+          <Text style={[styles.sectionTitle, { paddingHorizontal: 0, marginTop: 0, marginBottom: 0 }]}>Dans votre assiette</Text>
+          <View style={styles.peopleChips}>
+            {[1, 2, 4].map((n) => (
+              <Pressable key={n} testID={`people-${n}`} onPress={() => setPeople(n)} style={[styles.peopleChip, people === n && styles.peopleChipOn]}>
+                <Text style={[styles.peopleText, people === n && styles.peopleTextOn]}>{n === 1 ? "Pour moi" : `×${n}`}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+        {people > 1 && <Text style={styles.peopleHint} testID="people-hint">Quantités pour {people} personnes — votre portion reste inchangée : servez-vous la part indiquée « pour moi ».</Text>}
         <View style={styles.card}>
           {meal.components.map((c, i) => (
-            <View key={i} style={styles.compRow} testID={`component-${i}`}>
-              {meal.pantry_used.includes(c.food_name) && <View style={styles.homeDot} />}
-              <View style={{ flex: 1 }}>
-                <Text style={styles.compCat}>{c.category_label}</Text>
-                <Text style={styles.compFood}>{c.food_name}</Text>
-              </View>
-              <Text style={styles.compGrams}>{c.grams} g</Text>
-              <Pressable testID={`component-swap-${i}`} disabled={!!busy} onPress={() => run(`comp${i}`, "replace_component", i)} style={styles.swapBtn}>
-                {busy === `comp${i}` ? <ActivityIndicator size="small" color={themeColors.warning} /> : <LucideIcon name="refresh-cw" size={13} color={themeColors.muted} />}
+            <View key={i}>
+              <Pressable testID={`component-${i}`} onPress={() => openSubs(i)} style={styles.compRow}>
+                {meal.pantry_used.includes(c.food_name) && <View style={styles.homeDot} />}
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.compCat}>{c.category_label}</Text>
+                  <Text style={styles.compFood}>{c.food_name}</Text>
+                </View>
+                <View>
+                  <Text style={styles.compGrams}>{people > 1 ? Math.round(c.grams * people) : c.grams} g</Text>
+                  {people > 1 && <Text style={styles.compFamily}>moi : {c.grams} g</Text>}
+                </View>
+                <Pressable testID={`component-swap-${i}`} disabled={!!busy} onPress={() => run(`comp${i}`, "replace_component", i)} style={styles.swapBtn}>
+                  {busy === `comp${i}` ? <ActivityIndicator size="small" color={themeColors.warning} /> : <LucideIcon name="refresh-cw" size={13} color={themeColors.muted} />}
+                </Pressable>
               </Pressable>
+              {subsFor === i && (
+                <View style={styles.subsBox} testID={`subs-${i}`}>
+                  <Text style={styles.subsTitle}>Équivalents (quantité ajustée) — touchez pour remplacer</Text>
+                  {!subs ? <ActivityIndicator size="small" color={themeColors.warning} /> : subs.length === 0 ? <Text style={styles.subsTitle}>Aucun équivalent disponible.</Text> : (
+                    <View style={styles.subsRow}>
+                      {subs.map((s: any) => (
+                        <Pressable key={s.food_id} testID={`sub-${s.food_id}`} onPress={() => applySub(i, s.food_id)} style={[styles.subChip, !s.same_family && styles.subChipOther]}>
+                          <Text style={styles.subText}>{s.food_name} <Text style={styles.subGrams}>{s.grams} g</Text></Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              )}
             </View>
           ))}
         </View>
@@ -296,6 +359,12 @@ export default function RecipeScreen() {
               {busy === "replace" ? <ActivityIndicator size="small" color={themeColors.warning} /> : <LucideIcon name="refresh-cw" size={16} color={themeColors.warning} />}
               <Text style={styles.btnText}>Changer le repas</Text>
             </Pressable>
+            {canUndo ? (
+              <Pressable testID="recipe-undo" disabled={!!busy} onPress={() => run("undo", "undo")} style={styles.btn}>
+                <LucideIcon name="undo-2" size={16} color={themeColors.warning} />
+                <Text style={styles.btnText}>Annuler</Text>
+              </Pressable>
+            ) : null}
             <Pressable testID="recipe-quick" disabled={!!busy || (r.quick && mealKey !== "breakfast")} onPress={() => run("quick", "quick")} style={[styles.btn, r.quick && { opacity: 0.5 }]}>
               {busy === "quick" ? <ActivityIndicator size="small" color={themeColors.warning} /> : <LucideIcon name="zap" size={16} color={themeColors.warning} />}
               <Text style={styles.btnText}>{r.quick ? "Déjà rapide" : "Je n'ai pas le temps"}</Text>

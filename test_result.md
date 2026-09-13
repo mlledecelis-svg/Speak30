@@ -189,3 +189,9 @@ agent_communication:
 
   - agent: "main"
     message: "Itération 6 : Bilan hebdo (GET /api/programs/{id}/recap/{week} ; WeeklyRecap recap-card sur Accueil) ; Recherche recettes (Menus : search-toggle → search-input, search-results, search-result-i, filtre nom + ingrédients sur toutes les semaines) ; Batch cooking (GET /api/programs/{id}/batch/{week} ; Menus batch-open → écran /batch?week= : batch-hero, sessions, batch-group-<food_id>, batch-close) ; Splash animé (logo ZoomIn + tagline FadeInUp, min 1,3 s, testID splash)."
+
+  - agent: "main"
+    message: "Itération 7 : Substituts rapides (GET /api/programs/{id}/meals/substitutes?week&day&meal&index → {current, substitutes[{food_id, food_name, grams, same_family}]} ; action set_component {index, food_id} ; recette : tap component-i → subs-i → sub-<food_id>) ; Portions famille (people-1/2/4, people-hint, grammages ×n affichés, 'moi : X g') ; Minuteur cuisine (cooking : timer-start-i sur étapes contenant 'N min', timer-bar / timer-left / timer-toggle / timer-stop, vibration + Alert à 0) ; Semaine prochaine (Accueil, affichée samedi/dimanche si semaine suivante : next-week-card, next-week-shopping → Courses semaine suivante via param week, next-week-menus)."
+
+  - agent: "main"
+    message: "Itération 8 (parité nouvelle version du site) : Taille du foyer sur Courses (GET shopping/{week}?household=1..6, chips household-1/2/4, quantités ×n) ; Partager/copier la liste (champ text dans la réponse shopping, bouton share-shopping) ; Annuler la dernière modification (action 'undo' ; snapshot 'undo' sur le programme après replace/quick/replace_component/set_component/swap_day ; can_undo dans la réponse ; boutons undo-button (Menus) et recipe-undo (Recette)) ; badges lifestyle sur les recettes (recipe.lifestyle : Sans cuisson / Sans four / À emporter / Air fryer OK ; testID lifestyle-<badge>) ; semaine en cours automatique selon la date de création du programme (Accueil/Menus/Courses)."

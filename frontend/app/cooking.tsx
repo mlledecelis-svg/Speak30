@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, Pressable, ScrollView } from "react-native";
+import { View, Text, Pressable, ScrollView, Vibration, Alert, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import LucideIcon from "@react-native-vector-icons/lucide";
@@ -30,6 +30,13 @@ const useStyles = makeStyles((colors) => ({
   stepIndex: { color: colors.muted, fontSize: 11, letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 },
   stepText: { color: colors.onSurface, fontSize: 17, lineHeight: 26 },
   stepTextOn: { color: colors.muted, textDecorationLine: "line-through" },
+  timerBtn: { alignSelf: "flex-start", marginTop: 10, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, height: 32, borderRadius: 999, backgroundColor: colors.brandTertiary, borderWidth: 1, borderColor: colors.brandSecondary },
+  timerBtnText: { color: colors.onBrandTertiary, fontSize: 12, fontWeight: "600" },
+  timerBar: { marginHorizontal: 20, marginTop: 14, padding: 14, borderRadius: 16, backgroundColor: colors.brandPrimary, flexDirection: "row", alignItems: "center", gap: 12 },
+  timerBig: { color: colors.onBrandPrimary, fontSize: 30, fontWeight: "300", fontVariant: ["tabular-nums"] },
+  timerLabel: { color: colors.onBrandPrimary, fontSize: 12, opacity: 0.9, flex: 1 },
+  timerCtl: { width: 40, height: 40, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
+  timerDone: { backgroundColor: colors.warning },
   footer: { paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border, flexDirection: "row", gap: 10 },
   btn: { flex: 1, height: 52, borderRadius: 999, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border },
   btnPrimary: { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary },
@@ -47,6 +54,28 @@ export default function CookingScreen() {
   const mealKey = String(params.meal ?? "lunch");
   const { program, mealAction } = useProgram();
   const [done, setDone] = useState<Set<number>>(new Set());
+  const [timer, setTimer] = useState<{ step: number; total: number; left: number; running: boolean } | null>(null);
+
+  useEffect(() => {
+    if (!timer || !timer.running || timer.left <= 0) return;
+    const id = setInterval(() => setTimer((t) => (t && t.running ? { ...t, left: Math.max(0, t.left - 1) } : t)), 1000);
+    return () => clearInterval(id);
+  }, [timer?.running, timer?.step]);
+
+  useEffect(() => {
+    if (timer && timer.left === 0 && timer.total > 0) {
+      if (Platform.OS !== "web") Vibration.vibrate([0, 500, 300, 500, 300, 800]);
+      Alert.alert("⏱ Temps écoulé", `Étape ${timer.step + 1} terminée — passez à la suite !`);
+      setTimer((t) => (t ? { ...t, running: false } : t));
+    }
+  }, [timer?.left]);
+
+  const stepMinutes = (s: string): number | null => {
+    const m = s.match(/(\d+)(?:\s*(?:à|-)\s*(\d+))?\s*min/i);
+    if (!m) return null;
+    return Number(m[2] ?? m[1]);
+  };
+  const fmt = (sec: number) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
 
   useEffect(() => {
     activateKeepAwakeAsync("cooking").catch(() => {});
@@ -94,6 +123,18 @@ export default function CookingScreen() {
           ))}
         </View>
 
+        {timer && (
+          <View style={[styles.timerBar, timer.left === 0 && styles.timerDone]} testID="timer-bar">
+            <Text style={styles.timerBig} testID="timer-left">{fmt(timer.left)}</Text>
+            <Text style={styles.timerLabel}>{timer.left === 0 ? `Étape ${timer.step + 1} terminée !` : `Minuteur · étape ${timer.step + 1} (${timer.total / 60} min)`}</Text>
+            <Pressable testID="timer-toggle" onPress={() => setTimer((t) => (t ? { ...t, running: !t.running } : t))} style={styles.timerCtl}>
+              <LucideIcon name={timer.running ? "pause" : "play"} size={16} color={themeColors.onBrandPrimary} />
+            </Pressable>
+            <Pressable testID="timer-stop" onPress={() => setTimer(null)} style={styles.timerCtl}>
+              <LucideIcon name="x" size={16} color={themeColors.onBrandPrimary} />
+            </Pressable>
+          </View>
+        )}
         <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${progress}%` }]} /></View>
         {r.steps.map((s, i) => {
           const on = done.has(i);
@@ -103,6 +144,12 @@ export default function CookingScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.stepIndex}>Étape {i + 1} / {total}</Text>
                 <Text style={[styles.stepText, on && styles.stepTextOn]}>{s}</Text>
+                {stepMinutes(s) !== null && !on && (
+                  <Pressable testID={`timer-start-${i}`} onPress={() => setTimer({ step: i, total: stepMinutes(s)! * 60, left: stepMinutes(s)! * 60, running: true })} style={styles.timerBtn}>
+                    <LucideIcon name="timer" size={13} color={themeColors.onBrandTertiary} />
+                    <Text style={styles.timerBtnText}>Lancer {stepMinutes(s)} min</Text>
+                  </Pressable>
+                )}
               </View>
             </Pressable>
           );

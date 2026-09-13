@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { View, Text, Pressable, ScrollView, ActivityIndicator, RefreshControl } from "react-native";
+import { View, Text, Pressable, ScrollView, ActivityIndicator, RefreshControl, Share, Platform, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import LucideIcon from "@react-native-vector-icons/lucide";
 
 import { makeStyles, colors as themeColors } from "@/src/theme";
 import { api } from "@/src/api";
-import { useProgram } from "@/src/program-store";
+import { useProgram, currentWeekIndex } from "@/src/program-store";
 
 const useStyles = makeStyles((colors) => ({
   root: { flex: 1, backgroundColor: colors.surface },
@@ -25,6 +25,13 @@ const useStyles = makeStyles((colors) => ({
   track: { height: 8, borderRadius: 999, backgroundColor: colors.surfaceTertiary },
   fill: { height: 8, borderRadius: 999, backgroundColor: colors.warning },
   complete: { color: colors.onBrandTertiary, fontSize: 12, marginTop: 10, fontWeight: "600" },
+  toolsRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 12 },
+  hhChip: { paddingHorizontal: 10, height: 30, borderRadius: 999, backgroundColor: colors.surfaceTertiary, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
+  hhChipOn: { backgroundColor: colors.brandTertiary, borderColor: colors.brandPrimary },
+  hhText: { color: colors.muted, fontSize: 12, fontWeight: "600" },
+  hhTextOn: { color: colors.onBrandTertiary },
+  shareBtn: { marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, height: 30, borderRadius: 999, backgroundColor: colors.brandPrimary },
+  shareText: { color: colors.onBrandPrimary, fontSize: 12, fontWeight: "600" },
   homeCard: { marginHorizontal: 24, marginBottom: 14, padding: 14, borderRadius: 16, backgroundColor: colors.brandTertiary, borderWidth: 1, borderColor: colors.brandSecondary },
   homeTitle: { color: colors.onSurface, fontSize: 13, fontWeight: "600", marginBottom: 4 },
   homeText: { color: colors.onBrandTertiary, fontSize: 12, lineHeight: 18 },
@@ -52,15 +59,20 @@ const SECTION_ICONS: Record<string, string> = {
   "Boulangerie & petit-déjeuner": "croissant", "Féculents & épicerie": "wheat", "Épicerie & végétal": "leaf", "Matières grasses & produits plaisir": "candy", Autres: "package",
 };
 
-type Shopping = { total: number; checked: number; progress: number; sections: { name: string; items: any[] }[]; home: any[] };
+type Shopping = { text?: string; household?: number; total: number; checked: number; progress: number; sections: { name: string; items: any[] }[]; home: any[] };
 
 export default function ShoppingScreen() {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { program, loading } = useProgram();
-  const [week, setWeek] = useState(0);
+  const params = useLocalSearchParams<{ week?: string }>();
+  const [week, setWeek] = useState(Number(params.week ?? 0) || 0);
+  const [household, setHousehold] = useState(1);
+  const [autoWeek, setAutoWeek] = useState(params.week !== undefined);
+  if (program && !autoWeek) { setAutoWeek(true); setWeek(currentWeekIndex(program)); }
   const [data, setData] = useState<Shopping | null>(null);
+  useEffect(() => { if (params.week !== undefined) setWeek(Number(params.week) || 0); }, [params.week]);
   const [busy, setBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -68,11 +80,24 @@ export default function ShoppingScreen() {
     if (!program) { setData(null); return; }
     setBusy(true);
     try {
-      setData(await api<Shopping>(`/programs/${program.id}/shopping/${week}`));
+      setData(await api<Shopping>(`/programs/${program.id}/shopping/${week}?household=${household}`));
     } catch { setData(null); } finally { setBusy(false); setRefreshing(false); }
-  }, [program, week]);
+  }, [program, week, household]);
 
   useEffect(() => { load(); }, [load]);
+
+  const shareList = async () => {
+    if (!data?.text) return;
+    try {
+      if (Platform.OS === "web") {
+        const nav: any = typeof navigator !== "undefined" ? navigator : null;
+        if (nav?.share) { await nav.share({ title: `Courses semaine ${week + 1}`, text: data.text }); return; }
+        if (nav?.clipboard?.writeText) { await nav.clipboard.writeText(data.text); Alert.alert("Copié", "Liste de courses copiée dans le presse-papiers."); return; }
+        return;
+      }
+      await Share.share({ title: `Courses semaine ${week + 1}`, message: data.text });
+    } catch {}
+  };
 
   const toggle = async (item: any) => {
     if (!program || !data) return;
@@ -128,6 +153,17 @@ export default function ShoppingScreen() {
               <View style={styles.track}><View style={[styles.fill, { width: `${data.progress}%` }]} /></View>
               {data.progress === 100 && data.total > 0 && <Text style={styles.complete}>✓ Liste terminée, tout est prêt pour la semaine.</Text>}
               {data.total === 0 && <Text style={styles.complete}>✓ Aucun achat nécessaire pour cette semaine.</Text>}
+              <View style={styles.toolsRow}>
+                <LucideIcon name="users" size={14} color={themeColors.muted} />
+                {[1, 2, 4].map((n) => (
+                  <Pressable key={n} testID={`household-${n}`} onPress={() => setHousehold(n)} style={[styles.hhChip, household === n && styles.hhChipOn]}>
+                    <Text style={[styles.hhText, household === n && styles.hhTextOn]}>{n === 1 ? "Pour moi" : `×${n}`}</Text>
+                  </Pressable>
+                ))}
+                <Pressable testID="share-shopping" onPress={shareList} style={styles.shareBtn}>
+                  <LucideIcon name="share-2" size={13} color={themeColors.onBrandPrimary} /><Text style={styles.shareText}>Partager</Text>
+                </Pressable>
+              </View>
             </View>
 
             {data.home.length > 0 && (

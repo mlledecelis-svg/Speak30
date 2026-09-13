@@ -10,7 +10,7 @@ import LucideIcon from "@react-native-vector-icons/lucide";
 
 import { makeStyles, colors as themeColors } from "@/src/theme";
 import { useAuth } from "@/src/auth";
-import { useProgram, MEAL_ORDER, MEAL_LABELS, MEAL_TIMES } from "@/src/program-store";
+import { useProgram, MEAL_ORDER, MEAL_LABELS, MEAL_TIMES, currentWeekIndex } from "@/src/program-store";
 import { MealCard } from "@/src/components/MealCard";
 import { HydrationCard } from "@/src/components/HydrationCard";
 import { BrandLogo } from "@/src/components/BrandLogo";
@@ -50,6 +50,17 @@ const useStyles = makeStyles((colors) => ({
   quick: { width: 150, padding: 14, borderRadius: 16, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, gap: 8 },
   quickLabel: { color: colors.onSurface, fontSize: 13, fontWeight: "600" },
   quickHint: { color: colors.muted, fontSize: 11 },
+  nextWeek: { marginHorizontal: 24, marginBottom: 16, padding: 16, borderRadius: 18, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.warning },
+  nextWeekTitle: { color: colors.onSurface, fontSize: 15, fontWeight: "600" },
+  nextWeekSub: { color: colors.muted, fontSize: 12, marginTop: 2, marginBottom: 10 },
+  nextWeekLine: { flexDirection: "row", gap: 8, paddingVertical: 4 },
+  nextWeekDay: { color: colors.warning, fontSize: 11, fontWeight: "700", width: 34, textTransform: "uppercase" },
+  nextWeekName: { color: colors.onSurfaceSecondary, fontSize: 12, flex: 1 },
+  nextWeekBtns: { flexDirection: "row", gap: 8, marginTop: 12 },
+  nextWeekBtn: { flex: 1, height: 40, borderRadius: 999, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6, backgroundColor: colors.brandPrimary },
+  nextWeekBtnAlt: { backgroundColor: colors.surfaceTertiary, borderWidth: 1, borderColor: colors.border },
+  nextWeekBtnText: { color: colors.onBrandPrimary, fontSize: 12, fontWeight: "600" },
+  nextWeekBtnTextAlt: { color: colors.onSurfaceSecondary },
   reminder: { marginHorizontal: 24, marginBottom: 16, borderRadius: 18, padding: 16, backgroundColor: colors.brandPrimary, flexDirection: "row", alignItems: "center", gap: 14, shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 5 },
   reminderIcon: { width: 44, height: 44, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center" },
   reminderEyebrow: { color: colors.onBrandPrimary, opacity: 0.8, fontSize: 10, letterSpacing: 2, textTransform: "uppercase", fontWeight: "700" },
@@ -80,6 +91,8 @@ export default function Home() {
   const [refreshing, setRefreshing] = useState(false);
   const [week, setWeek] = useState(0);
   const [badges, setBadges] = useState<any>(null);
+  const [autoWeek, setAutoWeek] = useState(false);
+  if (program && !autoWeek) { setAutoWeek(true); setWeek(currentWeekIndex(program)); }
 
   useEffect(() => {
     if (!program) { setBadges(null); return; }
@@ -226,6 +239,30 @@ export default function Home() {
             {active.map((m, i) => (
               <MealCard key={m} meal={day.meals[m]} mealKey={m} week={week} day={todayIndex} isNext={m === nextMeal} index={i} />
             ))}
+
+            {(() => {
+              const nw = program.weeks[week + 1];
+              const weekend = todayIndex >= 5;
+              if (!nw || !weekend) return null;
+              const preview = nw.days.slice(0, 3).map((d) => ({ day: d.day.slice(0, 3), name: (d.meals.lunch ?? d.meals.dinner)?.recipe.name })).filter((x) => x.name);
+              return (
+                <Animated.View entering={FadeInDown.duration(400)} style={styles.nextWeek} testID="next-week-card">
+                  <Text style={styles.nextWeekTitle}>🗓 Semaine prochaine · Semaine {nw.week}</Text>
+                  <Text style={styles.nextWeekSub}>Un aperçu pour bien démarrer lundi.</Text>
+                  {preview.map((p, i) => (
+                    <View key={i} style={styles.nextWeekLine}><Text style={styles.nextWeekDay}>{p.day}</Text><Text style={styles.nextWeekName} numberOfLines={1}>{p.name}</Text></View>
+                  ))}
+                  <View style={styles.nextWeekBtns}>
+                    <Pressable testID="next-week-shopping" onPress={() => router.push({ pathname: "/(tabs)/shopping", params: { week: String(week + 1) } })} style={styles.nextWeekBtn}>
+                      <LucideIcon name="shopping-basket" size={14} color={themeColors.onBrandPrimary} /><Text style={styles.nextWeekBtnText}>Courses pour lundi</Text>
+                    </Pressable>
+                    <Pressable testID="next-week-menus" onPress={() => setWeek(week + 1)} style={[styles.nextWeekBtn, styles.nextWeekBtnAlt]}>
+                      <Text style={[styles.nextWeekBtnText, styles.nextWeekBtnTextAlt]}>Voir les menus</Text>
+                    </Pressable>
+                  </View>
+                </Animated.View>
+              );
+            })()}
 
             <WeeklyRecap week={week} />
 

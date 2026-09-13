@@ -9,7 +9,7 @@ import { exportWeekPdf } from "@/src/export";
 import { api } from "@/src/api";
 
 import { makeStyles, colors as themeColors } from "@/src/theme";
-import { useProgram, MEAL_ORDER, MEAL_LABELS, MEAL_ICONS } from "@/src/program-store";
+import { useProgram, MEAL_ORDER, MEAL_LABELS, MEAL_ICONS, currentWeekIndex } from "@/src/program-store";
 
 const useStyles = makeStyles((colors) => ({
   root: { flex: 1, backgroundColor: colors.surface },
@@ -71,12 +71,14 @@ export default function Planner() {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { program, loading, mealAction, todayIndex, photoUrl } = useProgram();
+  const { program, loading, mealAction, todayIndex, photoUrl, canUndo } = useProgram();
   const [exporting, setExporting] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [week, setWeek] = useState(0);
+  const [week, setWeek] = useState(currentWeekIndex(program));
   const [dayIdx, setDayIdx] = useState(todayIndex);
+  const [autoWeek, setAutoWeek] = useState(false);
+  if (program && !autoWeek) { setAutoWeek(true); setWeek(currentWeekIndex(program)); }
   const [toast, setToast] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -230,6 +232,13 @@ export default function Planner() {
             )}
             <View style={styles.dayHead}>
               <Text style={styles.dayTitle}>{day.day}</Text>
+              <View style={{ flex: 1 }} />
+              {canUndo && (
+                <Pressable testID="undo-button" disabled={busy} onPress={() => run(() => mealAction(week, dayIdx, "lunch", "undo"))} style={[styles.swapBtn, { marginRight: 6 }]}>
+                  <LucideIcon name="undo-2" size={13} color={themeColors.warning} />
+                  <Text style={styles.swapText}>Annuler</Text>
+                </Pressable>
+              )}
               {program.can_swap && day.meals.lunch && day.meals.dinner && (
                 <Pressable testID="swap-day" disabled={busy} onPress={() => run(() => mealAction(week, dayIdx, "lunch", "swap_day"))} style={styles.swapBtn}>
                   <LucideIcon name="arrow-left-right" size={13} color={themeColors.onSurfaceSecondary} />

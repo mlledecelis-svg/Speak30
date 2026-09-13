@@ -93,6 +93,19 @@ Application mobile (Expo React Native) portage de https://elegant-starlight-eebd
 - **Batch cooking** (Menus → carte, écran `/batch`, `GET /programs/{id}/batch/{week}`) : aliments communs à plusieurs repas (quantité totale, repas concernés, conseil de conservation), 2 sessions suggérées, minutes gagnées
 - **Splash animé** : logo (ZoomIn) + signature (FadeInUp), affichage minimum 1,3 s
 
+## Itération 7 — cuisine au quotidien (livrée)
+- **Substituts rapides** (fiche recette, tap sur un ingrédient) : équivalents de la même famille puis autres familles autorisées, grammages convertis (`GET /programs/{id}/meals/substitutes`, action `set_component`)
+- **Portions famille** : ×2 / ×4 sur les quantités affichées, la portion personnelle reste visible
+- **Minuteur cuisine** (mode cuisine) : « Lancer N min » sur les étapes chronométrées, pause / arrêt, vibration + alerte à la fin
+- **Semaine prochaine** (Accueil, samedi/dimanche) : aperçu des menus de la semaine suivante, « Courses pour lundi » ouvre la liste de la bonne semaine
+
+## Itération 8 — parité avec la nouvelle version du site (livrée)
+- **Taille du foyer** sur les courses (Pour moi / ×2 / ×4, `?household=`) et **partage / copie** de la liste en texte
+- **Annuler la dernière modification** de repas (snapshot serveur, action `undo`, boutons sur Menus et Recette)
+- **Badges lifestyle** sur chaque recette : Sans cuisson · Sans four · À emporter · Air fryer OK
+- **Semaine en cours automatique** (calculée depuis la date de création du programme) sur Accueil, Menus et Courses
+- Déjà couvert par les itérations précédentes : recherche recettes, photos, favoris, mode cuisine, suivi poids avec tendance, badges/défis, coller texte, prépa (batch cooking), repas extérieur
+
 ## Stack technique
 - Frontend : Expo Router 57, Reanimated 4, gorhom/bottom-sheet, expo-image, expo-linear-gradient, @react-native-vector-icons/lucide, expo-blur
 - Backend : FastAPI, Motor (MongoDB), bcrypt, httpx (Emergent Google Auth)

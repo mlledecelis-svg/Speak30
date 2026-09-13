@@ -13,7 +13,7 @@ import httpx
 import bcrypt
 from foods import library_payload, DEFAULT_PROGRAM
 from storage import init_storage, put_object, get_object, APP_NAME
-from engine import (generate_plan, shopping_for_week, replace_meal, replace_component, swap_day, can_swap, parse_program_text, normalize_program, MOODS, MEAL_LABELS)
+from engine import (generate_plan, shopping_for_week, replace_meal, replace_component, swap_day, can_swap, parse_program_text, normalize_program, MOODS, MEAL_LABELS, component_substitutes, set_component)
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Dict, Any
@@ -394,11 +394,22 @@ async def delete_program(program_id: str, user: User = Depends(get_current_user)
 
 
 @api_router.get("/programs/{program_id}/shopping/{week}")
-async def get_shopping(program_id: str, week: int, user: User = Depends(get_current_user)):
+async def get_shopping(program_id: str, week: int, household: int = Query(1, ge=1, le=6), user: User = Depends(get_current_user)):
     doc = await _program(program_id, user.user_id)
     if week < 0 or week >= len(doc["weeks"]):
         raise HTTPException(status_code=404, detail="Semaine introuvable")
-    return shopping_for_week(doc["weeks"][week], await _pantry(user.user_id), doc.get("shopping_checked", []), week)
+    data = shopping_for_week(doc["weeks"][week], await _pantry(user.user_id), doc.get("shopping_checked", []), week, household)
+    lines = [f"🛒 Courses — Semaine {week + 1}" + (f" (×{household} personnes)" if household > 1 else "")]
+    for sec in data["sections"]:
+        lines.append("")
+        lines.append(sec["name"].upper())
+        for it in sec["items"]:
+            u = f" (≈ {it['units']} {it['unit_label']}{'s' if it['units'] > 1 else ''})" if it.get("units") else ""
+            lines.append(f"{'☑' if it['checked'] else '☐'} {it['name']} — {it['raw_grams']} g{' cru' if it['has_conversion'] else ''}{u}")
+    if data["home"]:
+        lines += ["", "🧺 Déjà à la maison : " + ", ".join(h["name"] for h in data["home"])]
+    data["text"] = "\n".join(lines)
+    return data
 
 
 @api_router.post("/programs/{program_id}/shopping/toggle")
@@ -407,6 +418,19 @@ async def toggle_shopping(program_id: str, payload: ShoppingToggleIn, user: User
     op = {"$addToSet": {"shopping_checked": payload.key}} if payload.checked else {"$pull": {"shopping_checked": payload.key}}
     await db.programs.update_one({"id": program_id}, op)
     return {"ok": True}
+
+
+@api_router.get("/programs/{program_id}/meals/substitutes")
+async def meal_substitutes(program_id: str, week: int = Query(...), day: int = Query(...), meal: str = Query(...), index: int = Query(...), user: User = Depends(get_current_user)):
+    doc = await _program(program_id, user.user_id)
+    try:
+        m = doc["weeks"][week]["days"][day]["meals"][meal]
+    except (IndexError, KeyError):
+        raise HTTPException(status_code=404, detail="Repas introuvable")
+    if index < 0 or index >= len(m["components"]):
+        raise HTTPException(status_code=404, detail="Aliment introuvable")
+    c = m["components"][index]
+    return {"current": c, "substitutes": component_substitutes(m, index, await _targets(user.user_id))}
 
 
 @api_router.post("/programs/{program_id}/meals/action")
@@ -419,6 +443,15 @@ async def meal_action(program_id: str, payload: MealActionIn, user: User = Depen
     day = week["days"][payload.day]
     meal = day["meals"].get(payload.meal)
     message = None
+    if payload.action == "undo":
+        snap = doc.get("undo")
+        if not snap:
+            raise HTTPException(status_code=400, detail="Rien à annuler.")
+        weeks[snap["week"]]["days"][snap["day"]] = snap["day_data"]
+        await db.programs.update_one({"id": program_id}, {"$set": {"weeks": weeks, "undo": None}})
+        return {"ok": True, "message": "↩ Dernière modification annulée.", "day": snap["day_data"], "week": snap["week"], "day_index": snap["day"], "can_undo": False}
+    import copy as _copy
+    snapshot = {"week": payload.week, "day": payload.day, "day_data": _copy.deepcopy(day)} if payload.action in ("replace", "quick", "replace_component", "set_component", "swap_day") else None
     if payload.action == "swap_day":
         if not can_swap(await _targets(user.user_id)) or not swap_day(day):
             raise HTTPException(status_code=400, detail="Interversion impossible : les deux repas doivent avoir exactement les mêmes catégories et portions.")
@@ -458,6 +491,12 @@ async def meal_action(program_id: str, payload: MealActionIn, user: User = Depen
             new_meal["done"] = meal.get("done", False)
             day["meals"][payload.meal] = new_meal
             message = "⚡ Version rapide proposée, toujours adaptée à votre plan." if payload.action == "quick" else "🔄 Nouveau repas proposé, toujours adapté à votre plan."
+        elif payload.action == "set_component":
+            v = payload.value if isinstance(payload.value, dict) else {}
+            tgt = await _targets(user.user_id)
+            if not set_component(meal, int(v.get("index", -1)), str(v.get("food_id", "")), tgt, await _pantry(user.user_id)):
+                raise HTTPException(status_code=400, detail="Substitut indisponible pour cet aliment.")
+            message = "Aliment remplacé, quantité adaptée à votre plan."
         elif payload.action == "replace_component":
             tgt = await _targets(user.user_id)
             pantry = await _pantry(user.user_id)
@@ -468,8 +507,11 @@ async def meal_action(program_id: str, payload: MealActionIn, user: User = Depen
             message = "Aliment remplacé par un équivalent, quantité adaptée."
         else:
             raise HTTPException(status_code=400, detail="Action inconnue")
-    await db.programs.update_one({"id": program_id}, {"$set": {"weeks": weeks}})
-    return {"ok": True, "message": message, "day": day, "week": payload.week, "day_index": payload.day}
+    upd: Dict[str, Any] = {"weeks": weeks}
+    if snapshot:
+        upd["undo"] = snapshot
+    await db.programs.update_one({"id": program_id}, {"$set": upd})
+    return {"ok": True, "message": message, "day": day, "week": payload.week, "day_index": payload.day, "can_undo": bool(snapshot or doc.get("undo"))}
 
 
 # ---------------------------------------------------------------------------
