@@ -138,3 +138,8 @@ Application mobile (Expo React Native) portage de https://elegant-starlight-eebd
 
 ## Business enhancement — Monétisation possible (post-MVP)
 Freemium : 1 programme actif gratuit ; abonnement mensuel pour multi-programmes, export PDF de la semaine, synchronisation cloud multi-appareils et mode partage avec la diététicienne (réduit le friction de re-saisir chez le pro).
+
+
+## Session (juin 2026)
+- Question support : export vers un autre compte Emergent → répondu (Save to GitHub / Pull from GitHub).
+- Point restant (non demandé) : nom du plat statique après remplacement d ingrédient.

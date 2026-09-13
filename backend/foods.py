@@ -278,3 +278,27 @@ def library_payload() -> Dict[str, Any]:
         "foods": [{"id": f["id"], "name": f["name"], "cat": f["cat"]} for f in FOODS.values()],
         "default_program": DEFAULT_PROGRAM,
     }
+
+
+# kcal pour 100 g (poids tel que pesé dans l'assiette : féculents cuits, protéines crues)
+KCAL_DEFAULT = {"starch": 130, "protein": 150, "vegetables": 30, "fat": 880, "dairy": 70, "fruit": 55, "sweet": 300, "oleaginous": 620, "chocolate": 560}
+KCAL = {
+    "pain_complet": 245, "biscottes": 390, "muffin_anglais": 235, "avoine": 370, "granola": 450, "pates": 150, "gnocchi": 160, "riz": 130, "riz_complet": 125, "riz_noir": 140,
+    "semoule": 150, "boulgour": 120, "quinoa": 120, "ble": 130, "vermicelles": 140, "polenta": 85, "lentilles": 115, "lentilles_corail": 115, "pois_chiches": 165, "haricots_rouges": 125,
+    "haricots_blancs": 120, "flageolets": 110, "petits_pois": 80, "pomme_de_terre": 80, "patate_douce": 90,
+    "poulet": 110, "dinde": 105, "pintade": 115, "veau": 110, "porc_maigre": 130, "boeuf": 125, "boeuf_bavette": 130, "boeuf_steak_hache5": 125, "boeuf_filet": 130, "boeuf_rosbif": 120,
+    "cabillaud": 80, "colin": 80, "merlu": 85, "merlan": 80, "lieu_noir": 85, "sole": 85, "bar": 100, "dorade": 100, "lotte": 80, "turbot": 95,
+    "saumon": 200, "truite": 130, "maquereau": 200, "sardines": 160, "hareng": 190, "thon": 110, "crevettes": 90, "gambas": 90, "saint_jacques": 85, "crabe": 90, "moules": 85,
+    "oeuf": 145, "jambon_blanc": 110, "blanc_poulet_tranches": 105, "blanc_dinde_tranches": 100, "bacon_maigre": 150, "tofu": 120, "tempeh": 190, "seitan": 140,
+    "huile_olive": 900, "huile_colza": 900, "beurre": 740, "beurre_cacahuete": 600,
+    "yaourt_nature": 60, "fromage_blanc": 75, "skyr": 65, "fromage": 350, "fromage_frais": 250, "creme_15": 165, "lait": 46, "lait_vegetal": 40,
+    "banane": 90, "raisin": 70, "mangue": 60, "cerises": 65, "figue": 70, "compote": 60, "fruits_seches": 280, "jus_fruits": 45, "melon": 35, "fraises": 33, "framboises": 45, "pamplemousse": 40,
+    "miel": 320, "confiture": 250, "pate_tartiner": 540, "amandes": 600, "noix": 660, "noisettes": 640, "noix_cajou": 580, "chocolat_noir": 560,
+    "salade_verte": 15, "concombre": 12, "tomate": 18, "champignons": 22, "courgette": 17, "epinard": 23, "brocoli": 34, "carotte": 40, "betterave": 43, "potimarron": 40, "petits_pois_": 80,
+}
+
+
+def kcal_for(fid: str, grams: float) -> int:
+    food = FOODS.get(fid)
+    per100 = KCAL.get(fid, KCAL_DEFAULT.get(food["cat"], 100) if food else 100)
+    return int(round(grams * per100 / 100))

@@ -13,7 +13,8 @@ import httpx
 import bcrypt
 from foods import library_payload, DEFAULT_PROGRAM
 from storage import init_storage, put_object, get_object, APP_NAME
-from engine import (generate_plan, shopping_for_week, replace_meal, replace_component, swap_day, can_swap, parse_program_text, normalize_program, MOODS, MEAL_LABELS, component_substitutes, set_component)
+from engine import (generate_plan, shopping_for_week, replace_meal, replace_component, swap_day, can_swap, parse_program_text, normalize_program, MOODS, MEAL_LABELS, component_substitutes, set_component, refresh_meal_metrics)
+from recipes import MAIN_BLUEPRINTS, BREAKFAST_BLUEPRINTS
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Dict, Any
@@ -364,6 +365,21 @@ async def list_programs(user: User = Depends(get_current_user)):
     return [_serialize(d) for d in docs]
 
 
+async def _ensure_metrics(doc: Dict[str, Any]) -> Dict[str, Any]:
+    """Ajoute calories et photo cohérente aux programmes générés avant cette version."""
+    changed = False
+    for week in doc.get("weeks", []):
+        for day in week["days"]:
+            for m in day["meals"].values():
+                if "kcal" not in m["recipe"]:
+                    bp = next((b for b in MAIN_BLUEPRINTS + BREAKFAST_BLUEPRINTS if b["id"] == m["recipe"]["blueprint_id"]), None)
+                    refresh_meal_metrics(m, bp)
+                    changed = True
+    if changed:
+        await db.programs.update_one({"id": doc["id"]}, {"$set": {"weeks": doc["weeks"]}})
+    return doc
+
+
 @api_router.get("/programs/current")
 async def current_program(user: User = Depends(get_current_user)):
     doc = await db.programs.find_one({"user_id": user.user_id, "active": True, **NEW_FORMAT}, {"_id": 0})
@@ -371,12 +387,12 @@ async def current_program(user: User = Depends(get_current_user)):
         doc = await db.programs.find_one({"user_id": user.user_id, **NEW_FORMAT}, {"_id": 0}, sort=[("created_at", -1)])
     if not doc or not doc.get("weeks"):
         return None
-    return _serialize(doc)
+    return _serialize(await _ensure_metrics(doc))
 
 
 @api_router.get("/programs/{program_id}")
 async def get_program(program_id: str, user: User = Depends(get_current_user)):
-    return _serialize(await _program(program_id, user.user_id))
+    return _serialize(await _ensure_metrics(await _program(program_id, user.user_id)))
 
 
 @api_router.post("/programs/{program_id}/activate")

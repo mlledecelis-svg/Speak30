@@ -25,6 +25,11 @@ IMG = {
     "sweet_toast": "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=900&q=80",
     "snack": "https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?w=900&q=80",
     "smoothie": "https://images.unsplash.com/photo-1553530666-ba11a7da3888?w=900&q=80",
+    "shrimp": "https://images.unsplash.com/photo-1559737558-2f5a35f4523b?w=900&q=80",
+    "salmon": "https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=900&q=80",
+    "chicken": "https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?w=900&q=80",
+    "tofu": "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=900&q=80",
+    "chakchouka": "https://images.unsplash.com/photo-1590301157890-4810ed352733?w=900&q=80",
 }
 
 

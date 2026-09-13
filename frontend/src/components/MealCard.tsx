@@ -76,6 +76,7 @@ export function MealCard({ meal, mealKey, week, day, isNext, compact, featured, 
         <View style={styles.metaRow}>
           <View style={styles.meta}><LucideIcon name="clock" size={11} color={themeColors.muted} /><Text style={styles.metaText}>{r.minutes} min</Text></View>
           <View style={styles.meta}><Text style={styles.metaText}>{r.difficulty_label}</Text></View>
+          {r.kcal ? <View style={styles.meta}><LucideIcon name="flame" size={11} color={themeColors.warning} /><Text style={styles.metaText}>{r.kcal} kcal</Text></View> : null}
           {r.quick && <View style={styles.meta}><LucideIcon name="zap" size={11} color={themeColors.warning} /><Text style={styles.metaText}>Rapide</Text></View>}
           {meal.pantry_used.length > 0 && (
             <View style={[styles.meta, styles.metaHome]}><LucideIcon name="house" size={11} color={themeColors.onBrandTertiary} /><Text style={[styles.metaText, styles.metaHomeText]}>{meal.pantry_used.length} chez moi</Text></View>

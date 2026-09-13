@@ -1,0 +1,43 @@
+{
+  "summary": "Iteration 11 backend+frontend: 6/6 pytest passent + Playwright OK. (a) kcal : chaque meal.recipe.kcal est un entier >0 et strictement == somme components[].kcal ; plages plausibles respectées (déjeuner/dîner 250-1100, petit-déj 150-700, collation 80-400) sur l'ensemble d'un programme fraîchement généré et sur /api/programs/current de testuser1. (b) Cohérence photo : sur ~28 repas principaux d'un plan, aucune violation pour méthode-pâtes → photo-1621996346565, protéine shellfish → photo-1559737558, fatty_fish → photo-1467003909585, white_meat → photo-1598515214211 (les méthodes overridées listées dans le prompt sont bien exclues du test). (c) set_component index 0 : réponse 200, day.meals.<mk>.components[0].food_id = choix, meal.recipe.kcal recalculé == somme des composants et >0. FRONTEND /recipe?week=0&day=0&meal=lunch (390x844, session UI testuser1) : rating-like/neutral/avoid mesurés à 99x99 sw/cw et 42x42 sh/ch → aucun débordement (overflow_x=overflow_y=false pour les 3), 'Pas pour moi' visible dans rating-avoid ; badge recipe-kcal présent ('541 kcal' sur lunch d0, '531 kcal' sur dinner d1). Accueil : 4 occurrences 'kcal' (cartes petit-déj/déj/collation/dîner). /planner (route Menus) : data-testid day-kcal présent, '🔥 1616 kcal sur la journée' + chaque repas affiche ses kcal (352/555/185/524). Captures /tmp/it11_recipe1_lunch_d0.png (Brochettes de saumon & semoule — protéine réelle Crabe, image visuellement crustacés ✓ cohérente avec la protéine) et /tmp/it11_recipe2_dinner_d1.png (Mijoté filet de poulet aux navets — image curry/stew ✓ cohérente avec la méthode mijoté). Bug guests=0 iter10 : n'est plus dans le scope.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "/recipe",
+        "issues": [
+          "Observation hors scope : le nom du repas 'Brochettes de saumon & semoule' est un libellé fixe du blueprint alors que la protéine tirée est 'Crabe' (voir components[0]). L'image est bien photo-1559737558 (shellfish) donc COHÉRENTE avec la protéine, mais le libellé du plat ne l'est pas. Non bloquant pour l'itération 11 (image + kcal + overflow OK), à envisager dans une future itération : soit paramétrer les labels via {protein}, soit restreindre les 'proteins' du blueprint 'Brochettes de saumon' aux poissons gras."
+        ]
+      }
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration11.py",
+    "/app/test_reports/pytest/pytest_iter11.xml",
+    "/tmp/it11_home.png",
+    "/tmp/it11_planner.png",
+    "/tmp/it11_recipe1_lunch_d0.png",
+    "/tmp/it11_recipe2_dinner_d1.png"
+  ],
+  "action_items": [
+    "Aucune action bloquante pour l'itération 11. Optionnel : décorréler libellé de blueprint et protéine tirée (ex. 'Brochettes de saumon & semoule' avec protein=Crabe) pour éviter que le nom du plat contredise l'aliment servi."
+  ],
+  "critical_code_review_comments": [
+    "engine.pick_image (engine.py:224) applique bien la priorité méthode → protéine (pasta/risotto/curry/wok/gratin/bowl/toast d'abord, puis tags shellfish/fatty_fish/fish/plant/red_meat/white_meat). Ordre conforme au spec de l'itération 11.",
+    "engine.refresh_meal_metrics (engine.py:772) recalcule x['kcal']=kcal_for(food_id, grams) puis meal.recipe.kcal=sum(...). Correctement invoqué depuis set_component et replace_component — d'où l'égalité stricte observée sur set_component index 0.",
+    "engine.make_recipe (engine.py:275) définit kcal = sum(c.get('kcal', 0) for c in comp.values()) — cohérent avec la somme des components pour tous les repas générés (breakfast/lunch/dinner/snack)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "100%"},
+  "seed_data_creation": "Compte éphémère test_it11_<uuid>@test.fr créé via /api/auth/signup pour les tests backend. testuser1@test.fr utilisé pour la vérification /api/programs/current et le frontend.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Fichier pytest : /app/backend/tests/test_iteration11.py (6 tests, ~1.8s). Exécution : EXPO_PUBLIC_BACKEND_URL=<url> pytest backend/tests/test_iteration11.py -v. Le test image_coherence exclut les méthodes du METHOD_OVERRIDES car pick_image les priorise sur la protéine (spec conforme). Les captures /tmp/it11_recipe*_*.png permettent de juger visuellement la plausibilité photo/plat.",
+  "rca_of_issue": "Aucun bug détecté cette itération. Les 3 exigences (photos cohérentes, débordement rating-like/neutral/avoid corrigé, kcal par plat) sont satisfaites côté backend (généré + persistant + set_component recalcul) et côté UI (badge recipe-kcal, day-kcal, ratings 99x42 sans overflow, 'Pas pour moi' visible)."
+}

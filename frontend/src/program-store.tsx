@@ -3,8 +3,8 @@ import { Platform } from "react-native";
 import { api, loadToken } from "./api";
 import { useAuth } from "./auth";
 
-export type Component = { category: string; category_label: string; food_id: string; food_name: string; grams: number; unit: string; eq?: string };
-export type Recipe = { lifestyle?: string[]; blueprint_id: string; name: string; method: string; image: string; steps: string[]; minutes: number; difficulty: string; difficulty_label: string; extras: string[]; quick: boolean; moods: string[]; mode?: string | null };
+export type Component = { kcal?: number; category: string; category_label: string; food_id: string; food_name: string; grams: number; unit: string; eq?: string };
+export type Recipe = { kcal?: number; lifestyle?: string[]; blueprint_id: string; name: string; method: string; image: string; steps: string[]; minutes: number; difficulty: string; difficulty_label: string; extras: string[]; quick: boolean; moods: string[]; mode?: string | null };
 export type Meal = { recipe: Recipe; components: Component[]; pantry_used: string[]; done: boolean; favorite: boolean; rating: string | null; photo?: string | null };
 
 const BASE = process.env.EXPO_PUBLIC_BACKEND_URL as string;

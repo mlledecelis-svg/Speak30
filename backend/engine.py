@@ -5,7 +5,7 @@ import unicodedata
 from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional, Tuple
 
-from foods import FOODS, EQUIVALENCES, CATEGORIES, DEFAULT_PROGRAM, SECTION_ORDER
+from foods import FOODS, EQUIVALENCES, CATEGORIES, DEFAULT_PROGRAM, SECTION_ORDER, kcal_for
 from recipes import MAIN_BLUEPRINTS, BREAKFAST_BLUEPRINTS, SAVORY_BF, IMG, build_main_steps, build_breakfast_steps, build_snack_steps
 
 MEAL_ORDER = ["breakfast", "lunch", "snack", "dinner"]
@@ -203,7 +203,7 @@ def convert_grams(ln: Dict[str, Any], eid: str) -> float:
 def component(ln: Dict[str, Any], fid: str) -> Dict[str, Any]:
     eid = line_eq_for_food(ln, fid) or ln["ref"]
     g = convert_grams(ln, eid)
-    return {"category": ln["category"], "category_label": CATEGORIES[ln["category"]], "food_id": fid, "food_name": FOODS[fid]["name"], "grams": g, "unit": "g", "eq": eid}
+    return {"category": ln["category"], "category_label": CATEGORIES[ln["category"]], "food_id": fid, "food_name": FOODS[fid]["name"], "grams": g, "unit": "g", "eq": eid, "kcal": kcal_for(fid, g)}
 
 
 def active_lines(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -221,6 +221,42 @@ def recipe_name(bp: Dict[str, Any], comp: Dict[str, Dict[str, Any]]) -> str:
     return name
 
 
+def pick_image(bp: Dict[str, Any], comp: Dict[str, Dict[str, Any]]) -> str:
+    """Photo cohérente avec la technique ET la protéine réellement servie."""
+    m = bp["method"]
+    p = comp.get("protein")
+    tags = FOODS[p["food_id"]]["tags"] if p else []
+    if m in ("tomato_pasta", "bolognese", "creamy_pasta", "pesto_pasta", "carbonara", "gnocchi_skillet"):
+        return IMG["pasta"]
+    if m == "risotto":
+        return IMG["risotto"]
+    if m in ("curry", "stew", "chili"):
+        return IMG["curry"]
+    if m in ("wok", "fried_rice", "fruit_skillet"):
+        return IMG["wok"]
+    if m in ("gratin", "layered", "parmentier", "quiche", "tian", "stuffed", "potato_stuffed"):
+        return IMG["gratin"]
+    if m in ("warm_salad", "fresh_bowl", "bowl", "cold_soup", "burger_bowl", "taco_bowl", "korean_bowl"):
+        return IMG["soup"] if m == "cold_soup" else (IMG["salad"] if m in ("warm_salad",) else IMG["bowl"])
+    if m in ("hot_toast", "bruschetta", "fresh_toast", "sandwich"):
+        return IMG["toast"]
+    if m in ("frittata", "eggs_cocotte", "chakchouka", "ratatouille_eggs", "eggs_legume", "roast_egg", "scrambled", "omelette") or "egg" in tags:
+        return IMG["chakchouka"] if m == "chakchouka" else IMG["eggs"]
+    if "shellfish" in tags or "shell" in tags:
+        return IMG["shrimp"]
+    if "fatty_fish" in tags:
+        return IMG["salmon"]
+    if "fish" in tags:
+        return IMG["fish"]
+    if "plant" in tags:
+        return IMG["tofu"]
+    if "red_meat" in tags:
+        return IMG["meat"]
+    if "white_meat" in tags or "deli" in tags:
+        return IMG["chicken"]
+    return IMG.get(bp["image"], IMG["bowl"])
+
+
 def make_recipe(bp: Dict[str, Any], comp: Dict[str, Dict[str, Any]], steps: List[str], difficulty: str, mode: Optional[str] = None) -> Dict[str, Any]:
     minutes = bp["minutes"] + DIFF_EXTRA[difficulty]
     m = bp["method"]
@@ -235,7 +271,8 @@ def make_recipe(bp: Dict[str, Any], comp: Dict[str, Dict[str, Any]], steps: List
         badges.append("Air fryer OK")
     return {
         "lifestyle": badges,
-        "blueprint_id": bp["id"], "name": recipe_name(bp, comp), "method": bp["method"], "image": IMG.get(bp["image"], IMG["bowl"]),
+        "blueprint_id": bp["id"], "name": recipe_name(bp, comp), "method": bp["method"], "image": (IMG.get(bp["image"], IMG["bowl"]) if mode else pick_image(bp, comp)),
+        "kcal": sum(c.get("kcal", 0) for c in comp.values()),
         "steps": steps, "minutes": minutes, "difficulty": difficulty, "difficulty_label": DIFF_LABEL[difficulty],
         "extras": ["eau", "sel", "poivre"] + list(bp["extras"]), "quick": bool(bp["quick"]) or minutes <= 15, "moods": bp["moods"], "mode": mode,
     }
@@ -487,7 +524,7 @@ def build_snack(ctx: Ctx, day_state: Dict[str, Any]) -> Optional[Dict[str, Any]]
     if not comps:
         return None
     names = " & ".join(c["food_name"].lower() for c in comps)
-    recipe = {"blueprint_id": "snack", "name": f"Collation — {names[0].upper() + names[1:]}", "method": "snack", "image": IMG["snack"], "steps": build_snack_steps(comp), "minutes": 5,
+    recipe = {"blueprint_id": "snack", "name": f"Collation — {names[0].upper() + names[1:]}", "method": "snack", "image": IMG["snack"], "steps": build_snack_steps(comp), "minutes": 5, "kcal": sum(c["kcal"] for c in comps),
               "difficulty": "easy", "difficulty_label": "Facile", "extras": [], "quick": True, "moods": ["quick"], "mode": None, "lifestyle": ["Sans cuisson", "Sans four", "À emporter"]}
     return finalize_meal(recipe, comps, ctx)
 
@@ -728,7 +765,16 @@ def set_component(meal: Dict[str, Any], index: int, food_id: str, program: Dict[
     else:
         meal["recipe"]["steps"] = build_snack_steps(comp)
     meal["pantry_used"] = [x["food_name"] for x in meal["components"] if x["food_id"] in ctx.pantry]
+    refresh_meal_metrics(meal, bp)
     return True
+
+
+def refresh_meal_metrics(meal: Dict[str, Any], bp: Optional[Dict[str, Any]]):
+    for x in meal["components"]:
+        x["kcal"] = kcal_for(x["food_id"], x["grams"])
+    meal["recipe"]["kcal"] = sum(x["kcal"] for x in meal["components"])
+    if bp and not meal["recipe"].get("mode") and bp["id"] != "snack":
+        meal["recipe"]["image"] = pick_image(bp, {x["category"]: x for x in meal["components"]})
 
 
 def replace_component(meal: Dict[str, Any], index: int, program: Dict[str, Any], pantry, prefs, seed: int) -> bool:
@@ -759,6 +805,7 @@ def replace_component(meal: Dict[str, Any], index: int, program: Dict[str, Any],
         names = " & ".join(x["food_name"].lower() for x in meal["components"])
         meal["recipe"]["name"] = f"Collation — {names[0].upper() + names[1:]}"
     meal["pantry_used"] = [x["food_name"] for x in meal["components"] if x["food_id"] in ctx.pantry]
+    refresh_meal_metrics(meal, bp)
     return True
 
 

@@ -65,9 +65,9 @@ const useStyles = makeStyles((colors) => ({
   feedback: { marginHorizontal: 20, marginTop: 20, padding: 14, borderRadius: 16, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border },
   feedbackTitle: { color: colors.onSurface, fontSize: 13, fontWeight: "600", marginBottom: 10 },
   ratingRow: { flexDirection: "row", gap: 8 },
-  rating: { flex: 1, height: 40, borderRadius: 12, backgroundColor: colors.surfaceTertiary, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
+  rating: { flex: 1, minHeight: 44, paddingVertical: 8, paddingHorizontal: 6, borderRadius: 12, backgroundColor: colors.surfaceTertiary, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
   ratingOn: { borderColor: colors.warning, backgroundColor: colors.brandTertiary },
-  ratingText: { color: colors.onSurfaceSecondary, fontSize: 12 },
+  ratingText: { color: colors.onSurfaceSecondary, fontSize: 11, textAlign: "center", lineHeight: 15 },
   ratingConfirm: { color: colors.onBrandTertiary, fontSize: 12, marginTop: 10 },
   noteInput: { backgroundColor: colors.surfaceTertiary, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12, color: colors.onSurface, fontSize: 14, minHeight: 80, textAlignVertical: "top" },
   noteRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 10 },
@@ -284,6 +284,7 @@ export default function RecipeScreen() {
         <View style={styles.badges}>
           <View style={styles.badge}><LucideIcon name="clock" size={12} color={themeColors.warning} /><Text style={styles.badgeText}>{r.minutes} min</Text></View>
           <View style={styles.badge}><LucideIcon name="gauge" size={12} color={themeColors.warning} /><Text style={styles.badgeText}>{r.difficulty_label}</Text></View>
+          {r.kcal ? <View style={styles.badge} testID="recipe-kcal"><LucideIcon name="flame" size={12} color={themeColors.warning} /><Text style={styles.badgeText}>{r.kcal} kcal</Text></View> : null}
           {r.quick && <View style={styles.badge}><LucideIcon name="zap" size={12} color={themeColors.warning} /><Text style={styles.badgeText}>Rapide</Text></View>}
           {meal.pantry_used.length > 0 && <View style={[styles.badge, styles.badgeHome]}><LucideIcon name="house" size={12} color={themeColors.onBrandTertiary} /><Text style={[styles.badgeText, { color: themeColors.onBrandTertiary }]}>Déjà chez moi : {meal.pantry_used.join(", ")}</Text></View>}
           {(r.lifestyle ?? []).map((b) => <View key={b} style={styles.badge} testID={`lifestyle-${b}`}><Text style={styles.badgeText}>{b === "Sans cuisson" ? "🥗" : b === "Sans four" ? "🍳" : b === "À emporter" ? "🥡" : "♨️"} {b}</Text></View>)}
@@ -314,7 +315,7 @@ export default function RecipeScreen() {
                 </View>
                 <View>
                   <Text style={styles.compGrams}>{people > 1 ? Math.round(c.grams * people) : c.grams} g</Text>
-                  {people > 1 && <Text style={styles.compFamily}>moi : {c.grams} g</Text>}
+                  {people > 1 ? <Text style={styles.compFamily}>moi : {c.grams} g</Text> : c.kcal ? <Text style={styles.compFamily}>{c.kcal} kcal</Text> : null}
                 </View>
                 <Pressable testID={`component-swap-${i}`} disabled={!!busy} onPress={() => run(`comp${i}`, "replace_component", i)} style={styles.swapBtn}>
                   {busy === `comp${i}` ? <ActivityIndicator size="small" color={themeColors.warning} /> : <LucideIcon name="refresh-cw" size={13} color={themeColors.muted} />}
@@ -425,7 +426,7 @@ export default function RecipeScreen() {
           <View style={styles.ratingRow}>
             {[{ k: "like", l: "😋 J'ai aimé" }, { k: "neutral", l: "😐 Moyen" }, { k: "avoid", l: "🙅 Pas pour moi" }].map((o) => (
               <Pressable key={o.k} testID={`rating-${o.k}`} disabled={!!busy} onPress={() => run("rating", "rating", meal.rating === o.k ? null : o.k)} style={[styles.rating, meal.rating === o.k && styles.ratingOn]}>
-                <Text style={styles.ratingText}>{o.l}</Text>
+                <Text style={styles.ratingText} numberOfLines={2} adjustsFontSizeToFit>{o.l}</Text>
               </Pressable>
             ))}
           </View>

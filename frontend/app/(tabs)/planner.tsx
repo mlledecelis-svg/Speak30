@@ -249,7 +249,10 @@ export default function Planner() {
               </Pressable>
             )}
             <View style={styles.dayHead}>
-              <Text style={styles.dayTitle}>{day.day}</Text>
+              <View>
+                <Text style={styles.dayTitle}>{day.day}</Text>
+                <Text style={styles.metaText} testID="day-kcal">🔥 {MEAL_ORDER.reduce((n, mk) => n + (day.meals[mk]?.recipe?.kcal ?? 0), 0)} kcal sur la journée</Text>
+              </View>
               <View style={{ flex: 1 }} />
               {canUndo && (
                 <Pressable testID="undo-button" disabled={busy} onPress={() => run(() => mealAction(week, dayIdx, "lunch", "undo"))} style={[styles.swapBtn, { marginRight: 6 }]}>
@@ -280,6 +283,7 @@ export default function Planner() {
                     <View style={styles.rowMeta}>
                       <Text style={styles.metaText}>⏱ {meal.recipe.minutes} min</Text>
                       <Text style={styles.metaText}>· {meal.recipe.difficulty_label}</Text>
+                      {meal.recipe.kcal ? <Text style={styles.metaText}>· 🔥 {meal.recipe.kcal} kcal</Text> : null}
                       {meal.pantry_used.length > 0 && (
                         <View style={styles.homeTag}><LucideIcon name="house" size={9} color={themeColors.onBrandTertiary} /><Text style={styles.homeTagText}>{meal.pantry_used.join(", ")}</Text></View>
                       )}
