@@ -1,0 +1,41 @@
+{
+  "summary": "Iteration 10 backend+frontend tested. Backend 6/7 pass — 1 bug found on guests validation (value=0 accepted as 1 instead of 400). Frontend: fridge PDF renders in EXACTLY 2 pages via Playwright (A4 9mm margin, print_background), HTML contains 7 <section class=\"day\">, 28 <ol class=\"st\"> (each with recipe steps, none empty), 134 grammages ('g</b>'), PAGE 1/2 and PAGE 2/2 both present. Menus print-fridge flow triggers window.print without JS errors. Recipe screen /recipe?week=0&day=0&meal=lunch — people-2 shows 'Repas invités pour 2 personnes' hint and persists after reload (guests saved server-side); people-1 hides hint. Tracker weigh-reminder visible; tapping 'Peser' (weigh-now) opens the sheet with weight-kg input. No unhandled JS errors (RN web shadow*/pointerEvents warnings filtered). Regressions (generate/recap/backup) all 200.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/programs/{id}/meals/action (action=guests)",
+        "issue": "value=0 returns 200 instead of 400. Root cause: `n = int(payload.value or 1)` in server.py line 465 — 0 is falsy in Python so gets coerced to 1, then passes the 1≤n≤8 check. Fix: `n = int(payload.value) if payload.value is not None else 1`. Note: value=9 correctly returns 400."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration10.py",
+    "/app/test_reports/pytest/pytest_iter10.xml",
+    "/tmp/build_fridge_html.js",
+    "/tmp/render_fridge_pdf.py",
+    "/tmp/fridge2.html",
+    "/tmp/fridge2.pdf"
+  ],
+  "action_items": [
+    "Backend: fix `int(payload.value or 1)` for action=guests in /app/backend/server.py:465 so value=0 returns HTTP 400 (change to `int(payload.value) if payload.value is not None else 1`). Currently value=0 is silently treated as 1."
+  ],
+  "critical_code_review_comments": [
+    "server.py guests validation uses `payload.value or 1` which fails for value=0 (Python falsy). This is the only functional deviation from spec.",
+    "buildFridgeHtml (export.ts) — page 2 legend appended inside the second .grid (grid-column:1/-1 span) is elegant and holds up cleanly in 2 pages A4 (rendered PDF confirms).",
+    "Recipe screen guests state syncs server-side (guests field on meal), persists across reload — good."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "86% (6/7)", "frontend": "100%"},
+  "seed_data_creation": "Ephemeral signup accounts (test_it10_<uuid>) created via /api/auth/signup for backend tests. No persistent seed for this iteration.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Fridge PDF validation pipeline is fully reproducible: (1) node /tmp/build_fridge_html.js → writes /tmp/fridge2.html and prints HTML stats; (2) PLAYWRIGHT_BROWSERS_PATH=/pw-browsers python /tmp/render_fridge_pdf.py → renders /tmp/fridge2.pdf (2 pages). Playwright chromium already installed at /pw-browsers. Backend pytest: `EXPO_PUBLIC_BACKEND_URL=<url> pytest /app/backend/tests/test_iteration10.py -v` (2 workers via xdist). Login testuser1@test.fr/testpass123 works; program is 'Programme du 12/09/2026 (restauré) (restauré)' with 4 weeks.",
+  "rca_of_issue": "Bug: POST /api/programs/{id}/meals/action with {action:'guests', value:0} returns 200 instead of 400. Reproduction: signup+generate → POST action=guests value=0 → response 200 with guests=1 in day.meals.dinner. Root cause: server.py:465 `n = int(payload.value or 1)` — Python evaluates `0 or 1` as `1`, so 0 never reaches the `if not (1 <= n <= 8)` guard. Mitigation: replace with `n = int(payload.value) if payload.value is not None else 1` (explicit None check). The value=9 case works because int(9 or 1)==9 fails the range check correctly."
+}

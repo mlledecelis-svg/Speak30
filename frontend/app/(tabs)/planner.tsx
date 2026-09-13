@@ -115,7 +115,7 @@ export default function Planner() {
     setExporting(true);
     setPrintOpen(false);
     try {
-      if (kind === "fridge") await exportFridgeSheet(program, week);
+      if (kind === "fridge") await exportFridgeSheet(program, week, photoUrl);
       else if (kind === "all") {
         const all = await Promise.all(program.weeks.map((_, i) => api<any>(`/programs/${program.id}/shopping/${i}`).catch(() => null)));
         await exportProgramPdf(program, all);

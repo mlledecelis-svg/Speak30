@@ -112,6 +112,12 @@ Application mobile (Expo React Native) portage de https://elegant-starlight-eebd
 - **Sauvegarde** : export JSON (`GET /backup`) et restauration (`POST /backup/restore`) depuis Réglages
 - **Guide de démarrage** 3 étapes sur l'Accueil sans programme
 
+## Itération 10 — fiche frigo redessinée & invités (livrée)
+- **Fiche frigo v2** : design épuré (cartes par jour, typographie serif/olive/or), sous chaque plat les ingrédients + la recette détaillée (étapes numérotées), vignettes photos, exactement 2 pages A4 (lundi→jeudi / vendredi→dimanche + repères)
+- **Repas invités** : nombre de convives par repas (action `guests`, chips Pour moi / ×2 / ×4 dans la recette) → liste de courses adaptée, portion personnelle inchangée
+- **Rappel pesée** (Suivi) : carte le lundi ou après 7 jours sans pesée, bouton « Peser »
+- Non réalisé : liste de courses vocale (nécessite une synthèse vocale et un build natif)
+
 ## Stack technique
 - Frontend : Expo Router 57, Reanimated 4, gorhom/bottom-sheet, expo-image, expo-linear-gradient, @react-native-vector-icons/lucide, expo-blur
 - Backend : FastAPI, Motor (MongoDB), bcrypt, httpx (Emergent Google Auth)

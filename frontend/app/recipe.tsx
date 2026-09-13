@@ -126,12 +126,18 @@ export default function RecipeScreen() {
   const [outsideOpen, setOutsideOpen] = useState(false);
   const [subsFor, setSubsFor] = useState<number | null>(null);
   const [subs, setSubs] = useState<any[] | null>(null);
-  const [people, setPeople] = useState(1);
+  const [people, setPeopleState] = useState(1);
   const [savedNote, setSavedNote] = useState("");
 
   const day = program?.weeks?.[week]?.days?.[dayIdx];
   const meal = day?.meals?.[mealKey];
   const bpId = meal?.recipe?.blueprint_id;
+  const guests = (meal as any)?.guests ?? 1;
+  const setPeople = (n: number) => {
+    setPeopleState(n);
+    if (n !== guests) run("guests", "guests", n);
+  };
+  useEffect(() => { setPeopleState(guests); }, [guests]);
 
   useEffect(() => {
     if (!bpId) return;
@@ -296,7 +302,7 @@ export default function RecipeScreen() {
             ))}
           </View>
         </View>
-        {people > 1 && <Text style={styles.peopleHint} testID="people-hint">Quantités pour {people} personnes — votre portion reste inchangée : servez-vous la part indiquée « pour moi ».</Text>}
+        {people > 1 && <Text style={styles.peopleHint} testID="people-hint">🍽 Repas invités pour {people} personnes : la liste de courses de la semaine est adaptée. Votre portion reste inchangée (« moi »).</Text>}
         <View style={styles.card}>
           {meal.components.map((c, i) => (
             <View key={i}>

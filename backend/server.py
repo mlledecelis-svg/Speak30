@@ -461,6 +461,12 @@ async def meal_action(program_id: str, payload: MealActionIn, user: User = Depen
             raise HTTPException(status_code=404, detail="Repas introuvable")
         if payload.action == "done":
             meal["done"] = bool(payload.value) if payload.value is not None else not meal.get("done")
+        elif payload.action == "guests":
+            n = int(payload.value) if payload.value is not None else 1
+            if not (1 <= n <= 8):
+                raise HTTPException(status_code=400, detail="Entre 1 et 8 personnes")
+            meal["guests"] = n
+            message = f"🍽 Repas prévu pour {n} personnes : la liste de courses est adaptée." if n > 1 else "Repas de retour en portion personnelle."
         elif payload.action == "outside":
             meal["outside"] = not meal.get("outside")
             meal["done"] = bool(meal["outside"]) or meal.get("done", False)

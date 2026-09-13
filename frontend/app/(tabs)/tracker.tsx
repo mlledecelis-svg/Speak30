@@ -208,6 +208,25 @@ export default function Tracker() {
           </View>
         </View>
 
+        {(() => {
+          const lastDate = last ? new Date(last.date + "T00:00:00").getTime() : 0;
+          const days = last ? Math.floor((Date.now() - lastDate) / 86400000) : 99;
+          const monday = new Date().getDay() === 1;
+          if (!(monday || days >= 7)) return null;
+          return (
+            <View style={[styles.milestone, { borderColor: themeColors.warning }]} testID="weigh-reminder">
+              <Text style={styles.milestoneEmoji}>⚖️</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.milestoneTitle}>{monday ? "C’est lundi : pesée de la semaine" : `Dernière pesée il y a ${days === 99 ? "…" : days} jours`}</Text>
+                <Text style={styles.milestoneText}>Le matin, à jeun, après être passé aux toilettes. Une seule pesée par semaine suffit pour suivre la tendance.</Text>
+              </View>
+              <Pressable testID="weigh-now" onPress={() => sheetRef.current?.expand()} style={{ backgroundColor: themeColors.brandPrimary, paddingHorizontal: 12, height: 36, borderRadius: 999, alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ color: themeColors.onBrandPrimary, fontSize: 12, fontWeight: "600" }}>Peser</Text>
+              </Pressable>
+            </View>
+          );
+        })()}
+
         {milestone && (
           <View style={styles.milestone} testID="milestone-card">
             <Text style={styles.milestoneEmoji}>{milestone.emoji}</Text>

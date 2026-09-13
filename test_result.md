@@ -198,3 +198,6 @@ agent_communication:
 
   - agent: "main"
     message: "Itération 9 : Impression (Menus → 🖨 export-pdf ouvre print-options : print-fridge = fiche frigo 2 pages (page 1 tableau 7 jours × 4 repas, page 2 exécution condensée des recettes en 2 colonnes), print-week = semaine + courses, print-all = tout le programme) ; Taille du texte (Réglages text-scale-1/1.15/1.3, appliqué via makeStyles, persistant) ; Sauvegarde (GET /api/backup, POST /api/backup/restore ; Réglages backup-export / backup-input / backup-restore / backup-msg) ; Guide de démarrage 3 étapes (start-guide sur l'Accueil sans programme)."
+
+  - agent: "main"
+    message: "Itération 10 : Fiche frigo redessinée (buildFridgeHtml : cartes par jour en grille 2 colonnes, page 1 lundi→jeudi, page 2 vendredi→dimanche + repères ; sous chaque plat : ingrédients + recette détaillée (4 étapes déjeuner/dîner, 2 étapes petit-déj/collation) ; vignette photo si photo du plat) ; Planning invités (action 'guests' value 1-8 → meal.guests ; chips people-1/2/4 de la recette enregistrent désormais le nombre de convives ; la liste de courses multiplie les quantités de ce repas) ; Rappel pesée (Suivi : carte weigh-reminder le lundi ou si dernière pesée ≥ 7 jours, bouton weigh-now ouvre la saisie). Liste vocale non implémentée (nécessite TTS + build natif)."

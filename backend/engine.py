@@ -572,8 +572,9 @@ def shopping_for_week(week: Dict[str, Any], pantry: List[Dict[str, Any]], checke
                 if not f:
                     continue
                 it = agg.setdefault(c["food_id"], {"food_id": c["food_id"], "name": f["name"], "section": f["section"], "cooked": 0.0, "raw": 0.0, "unit_label": f["unit_label"], "unit_g": f["unit_g"]})
-                it["cooked"] += c["grams"] * household
-                it["raw"] += c["grams"] * f["raw"] * household
+                mult = household * max(1, int(meal.get("guests") or 1))
+                it["cooked"] += c["grams"] * mult
+                it["raw"] += c["grams"] * f["raw"] * mult
     items = []
     home = []
     for it in agg.values():
