@@ -84,7 +84,7 @@ export default function PhotosScreen() {
                       <Image source={photoUrl(p.path)} style={styles.img} contentFit="cover" transition={200} />
                       <View style={styles.cap}>
                         <Text style={styles.capMeal}>{p.meal_label}</Text>
-                        <Text style={styles.capName} numberOfLines={2}>{p.recipe_name}</Text>
+                        <Text style={styles.capName} numberOfLines={3}>{p.recipe_name}</Text>
                         <Text style={styles.capDay}>{p.day_name}</Text>
                       </View>
                     </Pressable>

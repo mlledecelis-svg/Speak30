@@ -255,40 +255,112 @@ def recipe_name(bp: Dict[str, Any], comp: Dict[str, Dict[str, Any]]) -> str:
 
 
 def pick_image(bp: Dict[str, Any], comp: Dict[str, Dict[str, Any]]) -> str:
-    """Photo cohérente avec la technique ET la protéine réellement servie."""
+    """Photo cohérente avec le plat : l'aliment réellement servi (cabillaud ≠ saumon) puis la technique."""
     m = bp["method"]
     p = comp.get("protein")
-    tags = FOODS[p["food_id"]]["tags"] if p else []
+    v = comp.get("vegetables")
+    pid = p["food_id"] if p else ""
+    tags = FOODS[pid]["tags"] if p else []
+    vid = v["food_id"] if v else ""
+    shell = "shellfish" in tags or "shell" in tags
+    fatty = "fatty_fish" in tags
+    white_fish = "white_fish" in tags
+    tuna = pid == "thon"
+    red = "red_meat" in tags
+    egg = "egg" in tags
+    plant = "plant" in tags
+    # --- l'aliment cité doit être visible : saumon / thon / crustacés priment sur la forme du plat
+    if fatty:
+        if m in ("fresh_bowl", "bowl", "warm_salad", "burger_bowl", "taco_bowl", "korean_bowl", "cold_soup"):
+            return IMG["salmon_bowl"]
+        return IMG["salmon_grill"] if m in ("grill", "skillet", "skewers", "wok") else IMG["salmon_plate"]
+    if tuna:
+        return IMG["tuna_salad"]
+    if shell:
+        if m in ("tomato_pasta", "bolognese", "creamy_pasta", "pesto_pasta", "carbonara", "gnocchi_skillet"):
+            return IMG["shrimp_pasta"]
+        if m in ("curry", "chili", "stew"):
+            return IMG["shrimp_curry"]
+        if m in ("warm_salad", "fresh_bowl", "bowl", "burger_bowl", "taco_bowl", "korean_bowl"):
+            return IMG["shrimp_salad"]
+        if pid == "moules" or m in ("poach", "skillet", "risotto", "fried_rice", "wok", "gratin", "papillote"):
+            return IMG["seafood_pan"]
+        return IMG["shrimp"]
+    # --- plats dont la forme domine, déclinés selon la protéine
     if m in ("tomato_pasta", "bolognese", "creamy_pasta", "pesto_pasta", "carbonara", "gnocchi_skillet"):
+        if shell:
+            return IMG["shrimp_pasta"]
+        if red or m == "bolognese":
+            return IMG["beef_pasta"]
         return IMG["pasta"]
     if m == "risotto":
         return IMG["risotto"]
-    if m == "stew" and bp["image"] == "soup":
-        return IMG["soup"]
-    if m in ("curry", "stew", "chili"):
-        return IMG["curry"]
-    if m in ("wok", "fried_rice", "fruit_skillet"):
-        return IMG["wok"]
-    if m in ("gratin", "layered", "parmentier", "quiche", "tian", "stuffed", "potato_stuffed"):
+    if m in ("layered",):
+        return IMG["lasagna"]
+    if m == "parmentier":
+        return IMG["parmentier"]
+    if m == "fried_rice":
+        return IMG["fried_rice"]
+    if m == "stew":
+        if bp["image"] == "soup":
+            return IMG["soup_pumpkin"] if vid == "potimarron" else IMG["soup_tomato"]
+        return IMG["stew"]
+    if m == "cold_soup":
+        return IMG["soup_green"]
+    if m in ("curry", "chili"):
+        return IMG["shrimp_curry"] if shell else (IMG["curry_rice"] if m == "curry" and comp.get("starch") and "rice" in FOODS[comp["starch"]["food_id"]]["tags"] else IMG["curry"])
+    if m in ("wok", "fruit_skillet"):
+        st = comp.get("starch")
+        return IMG["noodles"] if st and st["food_id"] in ("vermicelles", "pates") else IMG["wok"]
+    if m in ("ratatouille_plate", "ratatouille_eggs") or vid == "ratatouille":
+        return IMG["ratatouille"]
+    if m == "skewers":
+        return IMG["skewers"]
+    if m in ("hot_toast", "bruschetta"):
+        return IMG["croque"]
+    if m == "sandwich":
+        return IMG["sandwich"]
+    if m == "fresh_toast":
+        return IMG["fresh_toast"]
+    if m in ("warm_salad", "fresh_bowl", "bowl", "burger_bowl", "taco_bowl", "korean_bowl"):
+        if tuna:
+            return IMG["tuna_salad"]
+        if shell:
+            return IMG["shrimp_salad"]
+        if m == "warm_salad":
+            return IMG["composed_salad"] if egg else IMG["salad"]
+        return IMG["bowl"]
+    if m == "chakchouka":
+        return IMG["chakchouka"]
+    if m in ("frittata", "eggs_cocotte", "quiche", "tian", "roast_egg", "eggs_legume"):
+        return IMG["eggs_baked"]
+    if egg or m in ("scrambled", "omelette"):
+        return IMG["eggs"]
+    if m in ("gratin", "stuffed", "potato_stuffed"):
         return IMG["gratin"]
-    if m in ("warm_salad", "fresh_bowl", "bowl", "cold_soup", "burger_bowl", "taco_bowl", "korean_bowl"):
-        return IMG["soup"] if m == "cold_soup" else (IMG["salad"] if m in ("warm_salad",) else IMG["bowl"])
-    if m in ("hot_toast", "bruschetta", "fresh_toast", "sandwich"):
-        return IMG["toast"]
-    if m in ("frittata", "eggs_cocotte", "chakchouka", "ratatouille_eggs", "eggs_legume", "roast_egg", "scrambled", "omelette") or "egg" in tags:
-        return IMG["chakchouka"] if m == "chakchouka" else IMG["eggs"]
-    if "shellfish" in tags or "shell" in tags:
-        return IMG["shrimp"]
-    if "fatty_fish" in tags:
-        return IMG["salmon"]
-    if "fish" in tags:
-        return IMG["fish"]
-    if "plant" in tags:
+    # --- assiettes classiques : la protéine servie décide
+    if shell:
+        return IMG["seafood_pan"] if (pid == "moules" or m in ("poach", "skillet")) else IMG["shrimp"]
+    if (white_fish or "fish" in tags) and m == "provencal":
+        return IMG["fish_tomato"]
+    if tuna:
+        return IMG["tuna_salad"]
+    if fatty:
+        return IMG["salmon_grill"] if m in ("grill", "skillet", "skewers") else IMG["salmon_plate"]
+    if white_fish or "fish" in tags:
+        if m in ("grill", "poach"):
+            return IMG["white_fish_grill"]
+        if m in ("skillet", "croquettes"):
+            return IMG["white_fish_skillet"]
+        return IMG["white_fish"]
+    if plant:
         return IMG["tofu"]
-    if "red_meat" in tags:
-        return IMG["meat"]
+    if red:
+        return IMG["beef_sliced"] if m in ("roast", "meatballs") else IMG["beef_steak"]
+    if m == "roast" and ("white_meat" in tags):
+        return IMG["roast_poultry"]
     if "white_meat" in tags or "deli" in tags:
-        return IMG["chicken"]
+        return IMG["chicken"] if pid not in ("veau", "porc_maigre") else IMG["meat"]
     return IMG.get(bp["image"], IMG["bowl"])
 
 
@@ -549,6 +621,12 @@ def build_breakfast(ctx: Ctx, day_state: Dict[str, Any], week_state: Dict[str, A
     return meal
 
 
+def snack_name(comps: List[Dict[str, Any]]) -> str:
+    names = [c["food_name"].lower() for c in comps]
+    joined = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " & " + names[-1]
+    return f"Collation — {joined[0].upper() + joined[1:]}"
+
+
 def build_snack(ctx: Ctx, day_state: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     lines = active_lines(ctx.program["snack"]["items"])
     if not lines:
@@ -568,8 +646,7 @@ def build_snack(ctx: Ctx, day_state: Dict[str, Any]) -> Optional[Dict[str, Any]]
             day_state["fruits"] += 1
     if not comps:
         return None
-    names = " & ".join(c["food_name"].lower() for c in comps)
-    recipe = {"blueprint_id": "snack", "name": f"Collation — {names[0].upper() + names[1:]}", "method": "snack", "image": IMG["snack"], "steps": build_snack_steps(comp), "minutes": 5, "kcal": sum(c["kcal"] for c in comps),
+    recipe = {"blueprint_id": "snack", "name": snack_name(comps), "method": "snack", "image": IMG["snack"], "steps": build_snack_steps(comp), "minutes": 5, "kcal": sum(c["kcal"] for c in comps),
               "difficulty": "easy", "difficulty_label": "Facile", "extras": [], "quick": True, "moods": ["quick"], "mode": None, "lifestyle": ["Sans cuisson", "Sans four", "À emporter"]}
     return finalize_meal(recipe, comps, ctx)
 
@@ -844,8 +921,7 @@ def after_component_change(meal: Dict[str, Any], old_name: str, new_name: str, c
         meal["recipe"]["steps"] = build_breakfast_steps(bp, comp) if bp in BREAKFAST_BLUEPRINTS else build_main_steps(bp, comp)
     else:
         meal["recipe"]["steps"] = build_snack_steps(comp)
-        names = " & ".join(x["food_name"].lower() for x in meal["components"])
-        meal["recipe"]["name"] = f"Collation — {names[0].upper() + names[1:]}"
+        meal["recipe"]["name"] = snack_name(meal["components"])
     meal["pantry_used"] = [x["food_name"] for x in meal["components"] if x["food_id"] in ctx.pantry]
     refresh_meal_metrics(meal, bp)
 

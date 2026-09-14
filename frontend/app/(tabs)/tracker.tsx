@@ -17,7 +17,7 @@ const useStyles = makeStyles((colors) => ({
 
   statsRow: { flexDirection: "row", paddingHorizontal: 24, gap: 12, marginBottom: 20 },
   stat: { flex: 1, padding: 14, borderRadius: 14, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border },
-  statLabel: { color: colors.muted, fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase" },
+  statLabel: { color: colors.muted, fontSize: 10, letterSpacing: 0.8, textTransform: "uppercase", flexShrink: 1 },
   statValue: { color: colors.onSurface, fontSize: 22, fontWeight: "300", marginTop: 6 },
   statUnit: { color: colors.muted, fontSize: 12 },
 
@@ -180,11 +180,11 @@ export default function Tracker() {
 
         <View style={styles.statsRow}>
           <View style={styles.stat}>
-            <Text style={styles.statLabel}>Dernier</Text>
+            <Text style={styles.statLabel}>Dernière</Text>
             <Text style={styles.statValue}>{last?.weight ?? "—"} <Text style={styles.statUnit}>kg</Text></Text>
           </View>
           <View style={styles.stat}>
-            <Text style={styles.statLabel}>Précédente</Text>
+            <Text style={styles.statLabel}>Écart préc.</Text>
             <Text style={styles.statValue}>{deltaLast} <Text style={styles.statUnit}>kg</Text></Text>
           </View>
           <View style={styles.stat}>

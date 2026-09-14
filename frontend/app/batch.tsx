@@ -99,7 +99,7 @@ export default function BatchScreen() {
                 {g.meals.map((m: any, j: number) => (
                   <Pressable key={j} onPress={() => router.push({ pathname: "/recipe", params: { week: String(week), day: String(m.day), meal: m.meal } })} style={styles.mealLine}>
                     <View style={styles.mealDot} />
-                    <Text style={styles.mealText} numberOfLines={1}>{m.day_name} · {m.meal_label} — {m.recipe_name}</Text>
+                    <Text style={styles.mealText} numberOfLines={2}>{m.day_name} · {m.meal_label} — {m.recipe_name}</Text>
                     <Text style={styles.mealGrams}>{m.grams} g</Text>
                   </Pressable>
                 ))}

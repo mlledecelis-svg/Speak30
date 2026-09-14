@@ -1,0 +1,63 @@
+{
+  "summary": "Iteration 13 backend + frontend. Régression pytest globale : 137/140 tests verts (les 136 tests des itérations 1-12 restent 100 % OK ; SEULS les 3 nouveaux tests de cohérence photo/plat de l'itération 13 échouent). Ces 3 échecs ne sont pas des régressions, ils confirment PRÉCISÉMENT les non-conformités de pick_image vs le cahier des charges. Fichiers : /app/backend/tests/test_iteration13.py et /app/test_reports/pytest/pytest_iter13.xml. FRONTEND (390×844, testuser1@test.fr) : Rappel Accueil TRONQUÉ ('Bowl frais saumon, betteraves & riz …') malgré la spec 2 lignes ; la même troncature (webkit-line-clamp) est visible aussi sur les cartes Menus (mêmes lignes 'Bowl frais saumon, …'). Suivi (onglet Suivi) : les 3 libellés DERNIÈRE/ÉCART PRÉC./DEPUIS DÉBUT tiennent dans les cartes ✓. Courses / Favoris : pas de troncature visible (favoris vide). Fiche recette /recipe?week=1&day=3&meal=dinner : titre 'Moussaka végétarienne légère' complet, kcal 557 kcal, aucune troncature détectée. VISUELLEMENT, la fiche recette pour w0d0 dinner 'Pâtes aux aubergines fondantes & thon' affiche l'IMAGE des pâtes bolognaise (photo-1621996346565 = IMG.pasta) donc PAS DE POISSON visible sur un plat au thon → non-conforme spec. 'Gratin de potimarron & saumon' (w0d4 dinner) affiche photo-1619895092538 = IMG.gratin (aucun saumon visible). 'Papillote de merlan aux poireaux' (w3d4) est OK : photo-1476224203421 = IMG.white_fish (chair blanche visible).",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "GET /api/programs/current + POST /api/programs/generate", "issue": "pick_image ne respecte pas la spec pour de nombreux plats — la méthode culinaire domine et écrase la contrainte 'aliment servi'. Exemples confirmés sur testuser1 (5/5 saumons, 3/4 thons, 4/6 crustacés en défaut) : (a) Saumon+gratin → IMG.gratin (1619895092538) au lieu de salmon_plate/grill ; saumon+parmentier → IMG.parmentier (1633436375153) ; saumon+bowl/fresh_bowl → IMG.bowl (1512621776951) ; saumon+skewers → IMG.skewers (1603360946369) ; saumon+creamy_pasta → IMG.pasta (1621996346565). (b) Thon+creamy_pasta → IMG.pasta (1621996346565), thon+gratin/layered → IMG.lasagna (1574894709920), thon+sandwich → IMG.sandwich (1539252554453). (c) Crevettes/gambas+fried_rice → IMG.fried_rice (1603133872878) ; crevettes+cold_soup → IMG.soup_green (1594756202469) ; saint_jacques+risotto → IMG.risotto (1476124369491). (d) Moules+gratin → IMG.gratin (1619895092538) [vu sur run fresh]. Aucune de ces photos ne contient l'aliment protéique servi. Fix : dans engine.pick_image, remonter les branches 'protéine servie' (shell/tuna/fatty/white_fish) AU-DESSUS des branches méthode-dominante pour salmon, tuna et shell, sinon ajouter des variantes IMG.salmon_pasta / salmon_gratin / salmon_bowl / salmon_parmentier / salmon_skewers / tuna_pasta / tuna_sandwich / shrimp_fried_rice / shrimp_cold_soup / shrimp_risotto qui contiennent réellement l'aliment.", "priority": "CRITICAL"},
+      {"endpoint": "POST /api/programs/generate — BREAKFAST_BLUEPRINTS tartines_salees", "issue": "Blueprint tartines_salees utilise image='savory_breakfast' → photo-1533089860892 (savory breakfast générique) alors que la spec demande photo-1540914124281 pour TOUS les 'Tartines' au petit-déjeuner. Fix : recipes.py, blueprint 'tartines_salees' → image='sweet_toast' (ou renommer les deux vers une clé partagée pointant sur 1540914124281). ATTESTÉ 3× sur testuser1 et 2× sur programme frais.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "engine._ensure_metrics (server.py L378)", "issue": "La branche 'elif bp:' avale toutes les migrations non-bp (snack). Résultat : quand bp est trouvé (déjeuner/dîner) on entre dans 'elif bp:' et on saute la migration nom-snack. C'est correct par construction (les snacks n'ont pas de bp dans MAIN+BREAKFAST) MAIS si un ancien programme a un lunch/dinner avec image incohérente ET un nom snack mal formaté, seule l'image sera corrigée — pas les deux, car les branches sont exclusives. Diviser en if indépendants."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Accueil — carte Rappel (MealCard réutilisée en 'reminder mode')", "issue": "Nom de plat tronqué par '…' malgré la spec '2 lignes'. Exemple observé : 'Bowl frais saumon, betteraves & riz …'. Le style utilise numberOfLines={2} avec ellipsizeMode mais texte trop long → 3 lignes réelles. À supprimer numberOfLines ou passer à 3, ou réduire la largeur du bouton 'Cuisiner' pour libérer 2 lignes complètes.", "testID": "home-reminder-title", "priority": "HIGH"},
+      {"component": "Menus — cartes MealCard de la journée", "issue": "Mêmes titres tronqués : 'Bowl frais saumon, betteraves & riz complet' → 51 px scrollHeight vs 34 px visible (webkitLineClamp actif). La spec demande 'noms de plats complets dans chaque ligne (plus de numberOfLines)'. Vérifier /app/frontend/src/components/MealCard.tsx et /app/frontend/app/(tabs)/planner.tsx pour supprimer/lever numberOfLines sur le titre.", "testID": "planner-meal-title", "priority": "HIGH"}
+    ],
+    "integration_issues": [
+      {"flow": "Fiche recette — cohérence photo/plat", "issue": "L'image du header ne correspond pas au plat pour tous les plats saumon/thon/crustacés hors technique 'grill/skillet/poach' basique — écran /recipe?week=0&day=0&meal=dinner (Pâtes aux aubergines fondantes & thon) affiche une photo de pâtes bolognaise sans thon visible. Utilisateur final : 'photos des plats doivent correspondre au plat et aux aliments cités'.", "affected_testIDs": ["recipe-hero-image"]}
+    ],
+    "design_issues": [
+      {"screen": "Menus / Accueil", "issues": ["Le texte 'Fromage (comté, emmental…)' contient un '…' textuel volontaire (label ingrédient), pas une vraie troncature CSS — à confirmer si intentionnel. Sinon renommer 'Fromage (comté, emmental)' sans ellipse."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration13.py",
+    "/app/test_reports/pytest/pytest_iter13.xml",
+    "/app/.screenshots/it13_home.png",
+    "/app/.screenshots/it13_menus.png",
+    "/app/.screenshots/it13_menus_scroll.png",
+    "/app/.screenshots/it13_tracker.png",
+    "/app/.screenshots/it13_courses.png",
+    "/app/.screenshots/it13_recipe1.png",
+    "/app/.screenshots/it13_salmon_gratin.png",
+    "/app/.screenshots/it13_thon_pasta.png",
+    "/app/.screenshots/it13_whitefish_papillote.png",
+    "/app/.screenshots/it13_favorites.png"
+  ],
+  "action_items": [
+    "engine.py::pick_image — remonter les tests 'saumon (fatty)', 'thon (tuna)', 'shell (crevettes/gambas/saint_jacques/moules)' AVANT les branches méthode 'pasta/gratin/parmentier/bowl/fried_rice/cold_soup/skewers/risotto', OU ajouter des IMG dédiées contenant réellement l'aliment (salmon_pasta, salmon_gratin, salmon_bowl, salmon_parmentier, salmon_skewers, tuna_pasta, tuna_sandwich, tuna_gratin, shrimp_fried_rice, shrimp_cold_soup, shrimp_risotto) — actuellement les 30 nouvelles photos annoncées ne suffisent pas car la logique choisit la méthode en priorité.",
+    "recipes.py::BREAKFAST_BLUEPRINTS — blueprint 'tartines_salees' : image='savory_breakfast' → 'sweet_toast' (ou une nouvelle clé pointant sur photo-1540914124281) afin que TOUTES les tartines partagent la photo demandée.",
+    "MealCard.tsx (Accueil Rappel) — augmenter numberOfLines à 3 (ou supprimer la limitation) sur le titre de la carte de rappel pour afficher 'Bowl frais saumon, betteraves & riz complet' complètement.",
+    "planner.tsx (Menus) — supprimer numberOfLines/webkitLineClamp sur les titres des cartes MealCard ; laisser flex-wrap prendre le relais (spec : 'plus de numberOfLines').",
+    "server.py::_ensure_metrics — transformer les branches elif en if indépendants pour permettre la double migration (image + nom snack) sur un même document ancien.",
+    "Régénérer les programmes des utilisateurs existants après fix pick_image (ou compter sur la migration _ensure_metrics au prochain GET /programs/current — mais seulement si pick_image est corrigé)."
+  ],
+  "critical_code_review_comments": [
+    "engine.py:257-347 — pick_image : l'ordre des branches place les 'plats dont la forme domine' (pasta/gratin/parmentier/bowl/fried_rice/curry/wok/salad) AVANT la logique 'assiettes classiques' (protéine servie). Conséquence : pour un saumon en gratin, la photo de gratin gagne et le saumon est invisible. Spec inverse : la protéine servie doit toujours être identifiable → réorganiser ou dupliquer les IMG.",
+    "engine.py:298-299 — 'ratatouille_plate/ratatouille_eggs' et vid=='ratatouille' → toujours IMG.ratatouille : idem, si la protéine est saumon/thon/crevettes cela masque l'aliment ; ajouter au moins des variantes.",
+    "recipes.py:203 — blueprint 'tartines_salees' image='savory_breakfast' au lieu de 'sweet_toast' — divergence avec la demande utilisateur.",
+    "recipes.py:65 — IMG.pasta (1621996346565) et IMG.beef_pasta (1551183053) sont distincts, mais aucun IMG.salmon_pasta / IMG.tuna_pasta n'existe → pick_image renvoie IMG.pasta pour ces cas (mauvaise identification visuelle).",
+    "server.py:378-385 — _ensure_metrics utilise 'elif bp:' au lieu d'un 'if bp:' indépendant, empêchant l'application simultanée de plusieurs migrations sur un même meal."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration13.py (nouveau — 4 tests : 1 passant, 3 échecs révélant les non-conformités)"
+  ],
+  "success_rate": {"backend": "97.8% (137/140 tests globaux ; 1/4 nouveaux it13 seulement — les 3 échecs matérialisent les bugs demandés)", "frontend": "50% (Suivi/Courses/Favoris/Recette OK — 2 écrans avec troncature persistante : Accueil/Rappel + Menus)"},
+  "seed_data_creation": "Comptes éphémères test_it13_<uuid>@test.fr créés via /api/auth/signup pour les tests fresh_program et migration. testuser1@test.fr utilisé pour /programs/current — aucune donnée modifiée.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Le nouveau pytest itération 13 (/app/backend/tests/test_iteration13.py) importe pick_image depuis /app/backend/engine et compare recipe.image ← pick_image(bp, comps) pour chaque déjeuner/dîner ; il vérifie aussi (a) qu'aucun poisson blanc n'a une photo saumon, (b) que saumon/truite portent 1580476262798 OU 1560717845, (c) crevettes/gambas/moules/thon → photos dédiées, (d) tartines gourmandes/salées → 1540914124281. Une fois pick_image corrigé (voir action_items) et recipes.py:203 patché, ces 3 tests doivent passer sans modification. La 4e test 'TestMigrationFixesImage' vérifie post-migration que /programs/current renvoie des images cohérentes après régénération via _ensure_metrics — donc si pick_image est corrigé, le simple GET /programs/current suffira à réparer les anciens programmes.",
+  "rca_of_issue": "Cause racine : la fonction engine.pick_image (engine.py:257-347) évalue en premier les 'plats dont la forme domine' (pasta, risotto, gratin, parmentier, fried_rice, bowl, skewers, cold_soup, curry, wok, ratatouille) et retourne l'IMG associée à la MÉTHODE. Ces méthodes existent avec beaucoup d'aliments (saumon, thon, crevettes, poisson blanc, viande) et la photo reste la même quelle que soit la protéine. Les branches 'protéine servie' (shell/tuna/fatty/white_fish/plant/red) qui existent en fin de fonction ne sont donc jamais atteintes pour ces méthodes. Reproduction : gen program avec saumon+gratin, saumon+parmentier, saumon+skewers, saumon+bowl, saumon+pasta, thon+pasta, thon+sandwich, thon+gratin, crevettes+fried_rice, crevettes+cold_soup, saint_jacques+risotto → 100 % des cas montrent la photo de méthode. Mitigation : (1) ajouter dans les branches méthode un test préalable sur pid/tags qui retourne une photo dédiée (salmon_pasta, tuna_pasta, salmon_gratin, ...) ; (2) créer les IMG.<protéine>_<méthode> manquantes (fournir à minima 12 nouvelles URL Unsplash sur des plats identifiables) ; (3) patch recipes.py:203 tartines_salees → sweet_toast."
+}

@@ -210,7 +210,7 @@ export default function Home() {
                   <View style={styles.reminderIcon}><LucideIcon name="bell-ring" size={20} color={themeColors.onBrandPrimary} /></View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.reminderEyebrow}>Rappel · {MEAL_LABELS[reminder.key]} vers {reminder.time}</Text>
-                    <Text style={styles.reminderTitle} numberOfLines={1}>{reminder.meal.recipe.name}</Text>
+                    <Text style={styles.reminderTitle}>{reminder.meal.recipe.name}</Text>
                     <Text style={styles.reminderSub}>⏱ {reminder.meal.recipe.minutes} min · {reminder.when}</Text>
                   </View>
                   <Pressable testID="reminder-cook" onPress={() => router.push({ pathname: "/cooking", params: { week: String(week), day: String(todayIndex), meal: reminder.key } })} style={styles.reminderBtn}>
@@ -264,7 +264,7 @@ export default function Home() {
                   <Text style={styles.nextWeekTitle}>🗓 Semaine prochaine · Semaine {nw.week}</Text>
                   <Text style={styles.nextWeekSub}>Un aperçu pour bien démarrer lundi.</Text>
                   {preview.map((p, i) => (
-                    <View key={i} style={styles.nextWeekLine}><Text style={styles.nextWeekDay}>{p.day}</Text><Text style={styles.nextWeekName} numberOfLines={1}>{p.name}</Text></View>
+                    <View key={i} style={styles.nextWeekLine}><Text style={styles.nextWeekDay}>{p.day}</Text><Text style={styles.nextWeekName} numberOfLines={2}>{p.name}</Text></View>
                   ))}
                   <View style={styles.nextWeekBtns}>
                     <Pressable testID="next-week-shopping" onPress={() => router.push({ pathname: "/(tabs)/shopping", params: { week: String(week + 1) } })} style={styles.nextWeekBtn}>

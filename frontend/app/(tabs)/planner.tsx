@@ -274,8 +274,8 @@ export default function Planner() {
                     <Image source={photoUrl(r.m.photo) ?? r.m.recipe.image} style={styles.thumb} contentFit="cover" transition={200} />
                     <View style={styles.rowBody}>
                       <View style={styles.rowLabel}><Text style={styles.rowLabelText}>S{r.week + 1} · {r.dayName} · {MEAL_LABELS[r.meal]}</Text></View>
-                      <Text style={styles.rowName} numberOfLines={2}>{r.m.recipe.name}</Text>
-                      <Text style={styles.metaText} numberOfLines={1}>{r.m.components.map((c: any) => c.food_name).join(" · ")}</Text>
+                      <Text style={styles.rowName}>{r.m.recipe.name}</Text>
+                      <Text style={styles.metaText} numberOfLines={2}>{r.m.components.map((c: any) => c.food_name).join(" · ")}</Text>
                     </View>
                   </Pressable>
                 ))}
@@ -286,8 +286,8 @@ export default function Planner() {
                     <Image source={sug.image} style={styles.thumb} contentFit="cover" transition={200} />
                     <View style={styles.rowBody}>
                       <View style={styles.rowLabel}><Text style={styles.rowLabelText}>{sug.minutes} min{sug.lifestyle?.includes("À emporter") ? " · 🥡 à emporter" : ""}{sug.vegetarian ? " · 🌱" : ""}</Text></View>
-                      <Text style={styles.rowName} numberOfLines={2}>{sug.name}</Text>
-                      <Text style={styles.metaText} numberOfLines={1}>{(sug.ingredients ?? []).join(" · ")}</Text>
+                      <Text style={styles.rowName}>{sug.name}</Text>
+                      <Text style={styles.metaText} numberOfLines={2}>{(sug.ingredients ?? []).join(" · ")}</Text>
                       <View style={styles.applyRow}>
                         {(["lunch", "dinner"] as const).filter((mk) => program?.weeks?.[week]?.days?.[dayIdx]?.meals?.[mk]).map((mk) => (
                           <Pressable key={mk} testID={`apply-${i}-${mk}`} disabled={busy} onPress={() => applySuggestion(sug, mk)} style={styles.applyBtn}>
@@ -314,7 +314,7 @@ export default function Planner() {
                 <Text style={{ fontSize: 22 }}>⭐</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.featuredTitle}>Recette de la semaine · {weekData!.days[featured!.day].day}</Text>
-                  <Text style={styles.featuredText} numberOfLines={1}>{featuredMeal.recipe.name}</Text>
+                  <Text style={styles.featuredText} numberOfLines={2}>{featuredMeal.recipe.name}</Text>
                 </View>
                 <Text style={styles.metaText}>{doneCount} repas faits</Text>
               </Pressable>
@@ -350,7 +350,7 @@ export default function Planner() {
                       <Text style={styles.rowLabelText}>{MEAL_LABELS[m]}</Text>
                       {meal.favorite && <LucideIcon name="heart" size={11} color={themeColors.warning} />}
                     </View>
-                    <Text style={styles.rowName} numberOfLines={2}>{meal.recipe.name}</Text>
+                    <Text style={styles.rowName}>{meal.recipe.name}</Text>
                     <View style={styles.rowMeta}>
                       <Text style={styles.metaText}>⏱ {meal.recipe.minutes} min</Text>
                       <Text style={styles.metaText}>· {meal.recipe.difficulty_label}</Text>

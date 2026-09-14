@@ -152,3 +152,7 @@ Freemium : 1 programme actif gratuit ; abonnement mensuel pour multi-programmes,
 - **Hydratation** : objectif de départ 1 L (4 verres de 25 cl), réglable par 0,25 L, affichage en litres.
 - **Mes favoris** + **Contacter ma diététicienne** (mailto:aurelia.isnardon@gmail.com) sur l'Accueil et dans Réglages.
 - Question support : export vers un autre compte Emergent → répondu (Save to GitHub / Pull from GitHub).
+
+## Itération 13 — photos fidèles au plat & textes complets (livrée)
+- `engine.pick_image` réécrit : l'aliment réellement servi prime (saumon/truite → photos saumon dont poke bowl ; thon → assiette thon ; crevettes/gambas → crevettes / pâtes aux crevettes / curry / salade / poêlée fruits de mer ; moules → poêlée fruits de mer ; poisson blanc → 3 photos de poisson blanc selon technique, jamais de saumon ; bœuf → steak / tranché ; volaille rôtie ; brochettes ; œufs au four ; gratin ; lasagnes ; parmentier ; soupes potimarron/tomate/verte ; ratatouille ; croque / sandwich / tartines ; riz cantonais ; nouilles ; mijoté). 30 nouvelles photos dans `recipes.IMG`. Migration automatique des programmes existants (`_ensure_metrics`) + collations renommées « A, B & C ».
+- Textes : suppression des troncatures (noms de plats et ingrédients complets sur Accueil, Menus, Favoris, Rappel, Recette de la semaine), boutons de la fiche recette en retour à la ligne, libellés Suivi ajustés, bilan hydratation en litres.

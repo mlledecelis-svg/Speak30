@@ -41,7 +41,7 @@ export function WeeklyRecap({ week }: { week: number }) {
       </View>
       <View style={styles.grid}>
         <View style={styles.stat}><Text style={styles.statLabel}>Repas faits</Text><Text style={styles.statValue}>{data.done}<Text style={styles.statUnit}> / {data.meals} · {data.progress} %</Text></Text></View>
-        <View style={styles.stat}><Text style={styles.statLabel}>Hydratation</Text><Text style={styles.statValue}>{data.water_avg}<Text style={styles.statUnit}> verres / jour (obj. {data.water_goal})</Text></Text></View>
+        <View style={styles.stat}><Text style={styles.statLabel}>Hydratation</Text><Text style={styles.statValue}>{String((Math.round(data.water_avg * 25) / 100)).replace(".", ",")} L<Text style={styles.statUnit}> / jour{"\n"}objectif {String(data.water_goal * 0.25).replace(".", ",")} L</Text></Text></View>
         <View style={styles.stat}><Text style={styles.statLabel}>Poids</Text><Text style={styles.statValue}>{trend === null ? "—" : `${trend > 0 ? "+" : ""}${trend}`}<Text style={styles.statUnit}> kg sur les dernières pesées</Text></Text></View>
         <View style={styles.stat}><Text style={styles.statLabel}>Courses</Text><Text style={styles.statValue}>{data.shopping_checked}<Text style={styles.statUnit}> / {data.shopping_total} produits</Text></Text></View>
       </View>

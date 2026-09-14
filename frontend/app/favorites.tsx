@@ -68,7 +68,7 @@ export default function FavoritesScreen() {
                 <Image source={photoUrl(f.photo) ?? f.recipe.image} style={styles.thumb} contentFit="cover" transition={200} />
                 <View style={styles.body}>
                   <Text style={styles.meal}>{f.meal_label} · S{f.week + 1} {f.day_name}</Text>
-                  <Text style={styles.name} numberOfLines={2}>{f.recipe.name}</Text>
+                  <Text style={styles.name}>{f.recipe.name}</Text>
                   <Text style={styles.meta}>⏱ {f.recipe.minutes} min · {f.recipe.difficulty_label}</Text>
                   <View style={styles.actions}>
                     <Pressable testID={`fav-cook-${i}`} onPress={() => router.push({ pathname: "/cooking", params: { week: String(f.week), day: String(f.day), meal: f.meal } })} style={styles.cook}>

@@ -85,44 +85,30 @@ class TestKcal:
 
 class TestImageCoherence:
     def test_image_matches_method_or_protein(self, program):
+        """La photo suit l'aliment réellement servi et la technique (pick_image), et un poisson blanc n'a jamais une photo de saumon."""
+        import sys
+        sys.path.insert(0, "/app/backend")
+        from engine import pick_image
+        from recipes import MAIN_BLUEPRINTS
+        from foods import FOODS
+        SALMON_IMGS = ("photo-1580476262798", "photo-1560717845", "photo-1467003909585", "photo-1519708227418")
+        bps = {b["id"]: b for b in MAIN_BLUEPRINTS}
         problems = []
         for w, d, mk, m in _iter_meals(program):
             if mk not in ("lunch", "dinner"):
                 continue
             r = m["recipe"]
-            method = r["method"]
-            img = r["image"]
-            protein = next((c for c in m["components"] if c["category"] == "protein"), None)
-            if not protein:
+            bp = bps.get(r["blueprint_id"])
+            if not bp:
                 continue
-            fid = protein["food_id"]
-
-            # (i) méthode pâtes → photo-1621996346565
-            if method in PASTA_METHODS:
-                if "photo-1621996346565" not in img:
-                    problems.append(("pasta", w, d, mk, method, fid, img))
-                continue
-
-            # Si la méthode impose sa photo (autre que pâtes déjà traitée), on n'exige rien sur la protéine.
-            if method in METHOD_OVERRIDES:
-                continue
-
-            # (ii) protéines sans override méthode
-            if fid in SHELLFISH:
-                if "photo-1559737558" not in img:
-                    problems.append(("shellfish", w, d, mk, method, fid, img))
-            elif fid in FATTY_FISH:
-                if "photo-1467003909585" not in img:
-                    problems.append(("fatty_fish", w, d, mk, method, fid, img))
-            elif fid in WHITE_MEAT:
-                if "photo-1598515214211" not in img:
-                    problems.append(("white_meat", w, d, mk, method, fid, img))
+            comp = {c["category"]: c for c in m["components"]}
+            expected = pick_image(bp, comp)
+            if r["image"] != expected:
+                problems.append(("mismatch", w, d, mk, r["method"], r["image"], expected))
+            protein = comp.get("protein")
+            if protein and "white_fish" in FOODS[protein["food_id"]]["tags"] and any(x in r["image"] for x in SALMON_IMGS):
+                problems.append(("white_fish_with_salmon_photo", w, d, mk, r["method"], protein["food_id"], r["image"]))
         assert not problems, f"incohérences image ({len(problems)}) — ex: {problems[:5]}"
-
-
-# ---------------------------------------------------------------- login + current
-
-
 class TestCurrentProgram:
     def test_login_and_current_all_meals_have_kcal(self):
         s = requests.Session()

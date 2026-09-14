@@ -13,8 +13,8 @@ import httpx
 import bcrypt
 from foods import library_payload, DEFAULT_PROGRAM
 from storage import init_storage, put_object, get_object, APP_NAME
-from engine import (generate_plan, shopping_for_week, replace_meal, replace_component, swap_day, can_swap, parse_program_text, normalize_program, MOODS, MEAL_LABELS, component_substitutes, set_component, refresh_meal_metrics, search_recipes, apply_blueprint)
-from recipes import MAIN_BLUEPRINTS, BREAKFAST_BLUEPRINTS
+from engine import (generate_plan, shopping_for_week, replace_meal, replace_component, swap_day, can_swap, parse_program_text, normalize_program, MOODS, MEAL_LABELS, component_substitutes, set_component, refresh_meal_metrics, search_recipes, apply_blueprint, pick_image, snack_name)
+from recipes import MAIN_BLUEPRINTS, BREAKFAST_BLUEPRINTS, IMG
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Dict, Any
@@ -371,9 +371,17 @@ async def _ensure_metrics(doc: Dict[str, Any]) -> Dict[str, Any]:
     for week in doc.get("weeks", []):
         for day in week["days"]:
             for m in day["meals"].values():
+                bp = next((b for b in MAIN_BLUEPRINTS + BREAKFAST_BLUEPRINTS if b["id"] == m["recipe"]["blueprint_id"]), None)
                 if "kcal" not in m["recipe"]:
-                    bp = next((b for b in MAIN_BLUEPRINTS + BREAKFAST_BLUEPRINTS if b["id"] == m["recipe"]["blueprint_id"]), None)
                     refresh_meal_metrics(m, bp)
+                    changed = True
+                if bp:
+                    expected = IMG.get(bp["image"], IMG["bowl"]) if m["recipe"].get("mode") else pick_image(bp, {c["category"]: c for c in m["components"]})
+                    if m["recipe"].get("image") != expected:
+                        m["recipe"]["image"] = expected
+                        changed = True
+                if m["recipe"]["blueprint_id"] == "snack" and m["components"] and m["recipe"]["name"] != snack_name(m["components"]):
+                    m["recipe"]["name"] = snack_name(m["components"])
                     changed = True
     if changed:
         await db.programs.update_one({"id": doc["id"]}, {"$set": {"weeks": doc["weeks"]}})
