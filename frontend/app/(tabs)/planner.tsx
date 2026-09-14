@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { View, Text, Pressable, ScrollView, ActivityIndicator, Alert, TextInput } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -62,6 +62,15 @@ const useStyles = makeStyles((colors) => ({
   searchBox: { marginHorizontal: 24, marginBottom: 12, flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, borderRadius: 999, paddingHorizontal: 14, height: 44 },
   searchInput: { flex: 1, color: colors.onSurface, fontSize: 14 },
   resultMeta: { color: colors.warning, fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: "700", paddingHorizontal: 24, marginBottom: 8 },
+  filterRow: { paddingHorizontal: 24, gap: 8, paddingBottom: 12 },
+  filterChip: { paddingHorizontal: 12, height: 32, borderRadius: 999, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
+  filterChipOn: { backgroundColor: colors.brandTertiary, borderColor: colors.brandPrimary },
+  filterText: { color: colors.muted, fontSize: 12, fontWeight: "500" },
+  filterTextOn: { color: colors.onBrandTertiary },
+  applyRow: { flexDirection: "row", gap: 6, marginTop: 8, flexWrap: "wrap" },
+  applyBtn: { paddingHorizontal: 10, height: 28, borderRadius: 999, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center" },
+  applyText: { color: colors.onBrandPrimary, fontSize: 11, fontWeight: "600" },
+  emptyHint: { color: colors.muted, fontSize: 12, paddingHorizontal: 24, marginBottom: 12, lineHeight: 17 },
   batchChip: { marginHorizontal: 24, marginBottom: 12, flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 14, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border },
   batchText: { color: colors.onSurface, fontSize: 13, fontWeight: "600" },
   batchHint: { color: colors.muted, fontSize: 11, marginTop: 1 },
@@ -79,6 +88,8 @@ export default function Planner() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [filters, setFilters] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<any[] | null>(null);
   const [week, setWeek] = useState(currentWeekIndex(program));
   const [dayIdx, setDayIdx] = useState(todayIndex);
   const [autoWeek, setAutoWeek] = useState(false);
@@ -128,18 +139,46 @@ export default function Planner() {
     } finally { setExporting(false); }
   };
 
+  const searching = searchOpen && (query.trim().length >= 2 || filters.length > 0);
+  const matchesFilters = (r: any) => {
+    const ls: string[] = r.lifestyle ?? [];
+    if (filters.includes("takeaway") && !ls.includes("À emporter")) return false;
+    if (filters.includes("no_oven") && !ls.includes("Sans four")) return false;
+    if (filters.includes("quick") && !(r.quick || (r.minutes ?? 99) <= 15)) return false;
+    if (filters.includes("veg") && !(r.moods ?? []).includes("veg") && !r.vegetarian) return false;
+    return true;
+  };
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!program || q.length < 2) return [];
+    if (!program || !searching) return [];
     const out: { week: number; day: number; dayName: string; meal: string; m: any }[] = [];
     program.weeks.forEach((w, wi) => w.days.forEach((d, di) => MEAL_ORDER.forEach((mk) => {
       const m = d.meals[mk];
       if (!m?.recipe) return;
       const hay = `${m.recipe.name} ${m.components.map((c) => c.food_name).join(" ")}`.toLowerCase();
-      if (hay.includes(q)) out.push({ week: wi, day: di, dayName: d.day, meal: mk, m });
+      if ((q.length < 2 || hay.includes(q)) && matchesFilters(m.recipe)) out.push({ week: wi, day: di, dayName: d.day, meal: mk, m });
     })));
     return out.slice(0, 30);
-  }, [program, query]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [program, query, filters, searching]);
+
+  useEffect(() => {
+    if (!searching) { setSuggestions(null); return; }
+    const t = setTimeout(() => {
+      api<{ results: any[] }>(`/recipes/search?q=${encodeURIComponent(query.trim())}&meal=lunch&filters=${filters.join(",")}`)
+        .then((r) => setSuggestions(r.results)).catch(() => setSuggestions([]));
+    }, 350);
+    return () => clearTimeout(t);
+  }, [query, filters, searching]);
+
+  const applySuggestion = (sug: any, mealKey: "lunch" | "dinner") => {
+    if (!program) return;
+    run(async () => {
+      const msg = await mealAction(week, dayIdx, mealKey, "apply_recipe", { blueprint_id: sug.blueprint_id, food_id: sug.matched_food });
+      setSearchOpen(false); setQuery(""); setFilters([]);
+      return msg;
+    });
+  };
 
   const doneCount = useMemo(() => (weekData ? weekData.days.reduce((n, d) => n + Object.values(d.meals).filter((m) => m.done).length, 0) : 0), [weekData]);
 
@@ -214,9 +253,22 @@ export default function Planner() {
                 <TextInput testID="search-input" autoFocus value={query} onChangeText={setQuery} placeholder="Recette ou ingrédient (ex. saumon, gratin…)" placeholderTextColor={themeColors.muted} style={styles.searchInput} />
               </View>
             )}
-            {searchOpen && query.trim().length >= 2 ? (
+            {searchOpen && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+                {[{ k: "takeaway", l: "🥡 À emporter" }, { k: "quick", l: "⚡ ≤ 15 min" }, { k: "veg", l: "🌱 Végétarien" }, { k: "no_oven", l: "🍳 Sans four" }].map((f) => {
+                  const on = filters.includes(f.k);
+                  return (
+                    <Pressable key={f.k} testID={`filter-${f.k}`} onPress={() => setFilters((cur) => (on ? cur.filter((x) => x !== f.k) : [...cur, f.k]))} style={[styles.filterChip, on && styles.filterChipOn]}>
+                      <Text style={[styles.filterText, on && styles.filterTextOn]}>{f.l}</Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            )}
+            {searching ? (
               <>
-                <Text style={styles.resultMeta} testID="search-results">{results.length} résultat{results.length > 1 ? "s" : ""} sur tout le programme</Text>
+                <Text style={styles.resultMeta} testID="search-results">{results.length} résultat{results.length > 1 ? "s" : ""} dans votre programme</Text>
+                {results.length === 0 && <Text style={styles.emptyHint}>Aucun repas de votre menu ne correspond. Découvrez ci-dessous d’autres recettes compatibles avec votre plan.</Text>}
                 {results.map((r, i) => (
                   <Pressable key={`${r.week}-${r.day}-${r.meal}`} testID={`search-result-${i}`} onPress={() => router.push({ pathname: "/recipe", params: { week: String(r.week), day: String(r.day), meal: r.meal } })} style={styles.row}>
                     <Image source={photoUrl(r.m.photo) ?? r.m.recipe.image} style={styles.thumb} contentFit="cover" transition={200} />
@@ -226,6 +278,25 @@ export default function Planner() {
                       <Text style={styles.metaText} numberOfLines={1}>{r.m.components.map((c: any) => c.food_name).join(" · ")}</Text>
                     </View>
                   </Pressable>
+                ))}
+                <Text style={[styles.resultMeta, { marginTop: 8 }]} testID="suggestions-meta">{suggestions === null ? "Recherche d'autres idées…" : `${suggestions.length} autre${suggestions.length > 1 ? "s" : ""} recette${suggestions.length > 1 ? "s" : ""} compatible${suggestions.length > 1 ? "s" : ""} avec votre plan`}</Text>
+                {suggestions !== null && suggestions.length > 0 && <Text style={styles.emptyHint}>Hors de votre menu actuel, mais adaptées à vos portions et exclusions. Appliquez-en une au déjeuner ou au dîner du {day?.day?.toLowerCase() ?? "jour"} sélectionné (S{week + 1}).</Text>}
+                {(suggestions ?? []).map((sug, i) => (
+                  <View key={sug.blueprint_id} testID={`suggestion-${i}`} style={styles.row}>
+                    <Image source={sug.image} style={styles.thumb} contentFit="cover" transition={200} />
+                    <View style={styles.rowBody}>
+                      <View style={styles.rowLabel}><Text style={styles.rowLabelText}>{sug.minutes} min{sug.lifestyle?.includes("À emporter") ? " · 🥡 à emporter" : ""}{sug.vegetarian ? " · 🌱" : ""}</Text></View>
+                      <Text style={styles.rowName} numberOfLines={2}>{sug.name}</Text>
+                      <Text style={styles.metaText} numberOfLines={1}>{(sug.ingredients ?? []).join(" · ")}</Text>
+                      <View style={styles.applyRow}>
+                        {(["lunch", "dinner"] as const).filter((mk) => program?.weeks?.[week]?.days?.[dayIdx]?.meals?.[mk]).map((mk) => (
+                          <Pressable key={mk} testID={`apply-${i}-${mk}`} disabled={busy} onPress={() => applySuggestion(sug, mk)} style={styles.applyBtn}>
+                            <Text style={styles.applyText}>→ {MEAL_LABELS[mk]}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    </View>
+                  </View>
                 ))}
               </>
             ) : (

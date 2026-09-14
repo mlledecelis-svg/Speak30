@@ -7,6 +7,7 @@ import LucideIcon from "@react-native-vector-icons/lucide";
 import { makeStyles, colors as themeColors } from "@/src/theme";
 import { api } from "@/src/api";
 import { useProgram } from "@/src/program-store";
+import { lineEquivalents, LibEq } from "@/src/equivalents";
 
 const useStyles = makeStyles((colors) => ({
   root: { flex: 1, backgroundColor: colors.surface },
@@ -40,6 +41,12 @@ const useStyles = makeStyles((colors) => ({
   refChipOn: { backgroundColor: colors.brandTertiary, borderColor: colors.brandPrimary },
   refText: { color: colors.muted, fontSize: 11 },
   refTextOn: { color: colors.onBrandTertiary },
+  eqBox: { marginTop: 8, padding: 10, borderRadius: 12, backgroundColor: colors.surfaceTertiary, borderWidth: 1, borderColor: colors.border },
+  eqTitle: { color: colors.onSurfaceTertiary, fontSize: 11, fontWeight: "600", marginBottom: 4 },
+  eqLine: { color: colors.onSurfaceSecondary, fontSize: 12, lineHeight: 18 },
+  eqGrams: { color: colors.onSurface, fontWeight: "700" },
+  eqFoods: { color: colors.muted, fontSize: 11 },
+  eqRule: { color: colors.warning, fontSize: 11, marginTop: 6, lineHeight: 16 },
   toggleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   switch: { width: 36, height: 22, borderRadius: 999, padding: 2 },
   knob: { width: 18, height: 18, borderRadius: 999, backgroundColor: colors.onSurface },
@@ -76,9 +83,11 @@ function Toggle({ on, onPress, testID }: { on: boolean; onPress: () => void; tes
   );
 }
 
-function LineRow({ line, eqLabels, onChange, testID }: { line: Line; eqLabels: Record<string, string>; onChange: (l: Line) => void; testID: string }) {
+function LineRow({ line, eqLabels, equivalences, bonusG, onChange, testID }: { line: Line; eqLabels: Record<string, string>; equivalences: Record<string, LibEq>; bonusG: number; onChange: (l: Line) => void; testID: string }) {
   const styles = useStyles();
   const set = (g: number) => onChange({ ...line, grams: Math.max(0, Math.round(g)) });
+  const equivalents = line.grams > 0 ? lineEquivalents(equivalences, line.ref, line.grams, line.options ?? [line.ref]).filter((e) => !e.isRef) : [];
+  const breadRule = line.category === "starch" && (line.options ?? []).some((o) => o === "eq_main_bread" || o === "eq_main_crispbread");
   return (
     <View style={styles.line}>
       <View style={styles.lineTop}>
@@ -93,11 +102,20 @@ function LineRow({ line, eqLabels, onChange, testID }: { line: Line; eqLabels: R
       {(line.options ?? []).length > 1 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.refRow}>
           {(line.options ?? []).map((o) => (
-            <Pressable key={o} testID={`${testID}-ref-${o}`} onPress={() => onChange({ ...line, ref: o })} style={[styles.refChip, line.ref === o && styles.refChipOn]}>
+            <Pressable key={o} testID={`${testID}-ref-${o}`} onPress={() => onChange({ ...line, ref: o, grams: Math.max(0, Math.round(line.grams * ((equivalences[o]?.portion ?? 100) / (equivalences[line.ref]?.portion ?? 100)))) })} style={[styles.refChip, line.ref === o && styles.refChipOn]}>
               <Text style={[styles.refText, line.ref === o && styles.refTextOn]}>{eqLabels[o] ?? o}</Text>
             </Pressable>
           ))}
         </ScrollView>
+      )}
+      {equivalents.length > 0 && (
+        <View style={styles.eqBox} testID={`${testID}-equivalents`}>
+          <Text style={styles.eqTitle}>Vous pouvez remplacer {line.grams} g de {(eqLabels[line.ref] ?? line.ref).toLowerCase()} par :</Text>
+          {equivalents.map((e, i) => (
+            <Text key={`${e.eq}-${i}`} style={styles.eqLine}>• <Text style={styles.eqGrams}>{e.grams} g</Text> de {e.label.toLowerCase()}{e.foods.length > 0 && e.label !== e.foods.join(" / ") ? <Text style={styles.eqFoods}> ({e.foods.join(", ").toLowerCase()})</Text> : null}</Text>
+          ))}
+          {breadRule && <Text style={styles.eqRule}>Règle pro : si le pain ou les biscottes remplacent le féculent, +{bonusG} g de légumes sont ajoutés automatiquement au repas.</Text>}
+        </View>
       )}
     </View>
   );
@@ -237,7 +255,7 @@ export default function ConfigScreen() {
         </View>
 
         <View style={styles.help}>
-          <Text style={styles.helpText}><Text style={{ fontWeight: "700" }}>Saisie rapide :</Text> utilisez − / + pour ajuster les grammages. Une quantité à 0 désactive automatiquement cette catégorie dans les menus, les recettes et les courses.</Text>
+          <Text style={styles.helpText}><Text style={{ fontWeight: "700" }}>Saisie rapide :</Text> utilisez − / + pour ajuster les grammages. Une quantité à 0 désactive automatiquement cette catégorie dans les menus, les recettes et les courses. Les équivalences affichées sous chaque ligne sont recalculées à partir de la bibliothèque professionnelle dès que la quantité change.</Text>
         </View>
 
         {/* Petit-déjeuner */}
@@ -249,18 +267,18 @@ export default function ConfigScreen() {
           {showSavory && (
             <View style={styles.group}>
               <Text style={styles.groupTitle}>🥚 Petit-déjeuner salé</Text>
-              {bf.savory.map((ln: Line, i: number) => <LineRow key={i} line={ln} eqLabels={eqLabels} testID={`bf-savory-${i}`} onChange={(l) => setLines(["breakfast", "savory"], bf.savory.map((x: Line, j: number) => (j === i ? l : x)))} />)}
+              {bf.savory.map((ln: Line, i: number) => <LineRow key={i} line={ln} eqLabels={eqLabels} equivalences={lib.equivalences} bonusG={lib.rules_info?.bread_vegetable_bonus_g ?? 80} testID={`bf-savory-${i}`} onChange={(l) => setLines(["breakfast", "savory"], bf.savory.map((x: Line, j: number) => (j === i ? l : x)))} />)}
             </View>
           )}
           {showSweet && (
             <>
               <View style={styles.group}>
                 <Text style={styles.groupTitle}>🍯 Petit-déjeuner sucré — trame céréales</Text>
-                {bf.sweet_cereal.map((ln: Line, i: number) => <LineRow key={i} line={ln} eqLabels={eqLabels} testID={`bf-cereal-${i}`} onChange={(l) => setLines(["breakfast", "sweet_cereal"], bf.sweet_cereal.map((x: Line, j: number) => (j === i ? l : x)))} />)}
+                {bf.sweet_cereal.map((ln: Line, i: number) => <LineRow key={i} line={ln} eqLabels={eqLabels} equivalences={lib.equivalences} bonusG={lib.rules_info?.bread_vegetable_bonus_g ?? 80} testID={`bf-cereal-${i}`} onChange={(l) => setLines(["breakfast", "sweet_cereal"], bf.sweet_cereal.map((x: Line, j: number) => (j === i ? l : x)))} />)}
               </View>
               <View style={styles.group}>
                 <Text style={styles.groupTitle}>🍞 Petit-déjeuner sucré — trame pain/biscottes</Text>
-                {bf.sweet_bread.map((ln: Line, i: number) => <LineRow key={i} line={ln} eqLabels={eqLabels} testID={`bf-bread-${i}`} onChange={(l) => setLines(["breakfast", "sweet_bread"], bf.sweet_bread.map((x: Line, j: number) => (j === i ? l : x)))} />)}
+                {bf.sweet_bread.map((ln: Line, i: number) => <LineRow key={i} line={ln} eqLabels={eqLabels} equivalences={lib.equivalences} bonusG={lib.rules_info?.bread_vegetable_bonus_g ?? 80} testID={`bf-bread-${i}`} onChange={(l) => setLines(["breakfast", "sweet_bread"], bf.sweet_bread.map((x: Line, j: number) => (j === i ? l : x)))} />)}
               </View>
             </>
           )}
@@ -272,7 +290,7 @@ export default function ConfigScreen() {
             <Text style={styles.cardTitle}>☀️ Déjeuner</Text>
             <Pressable testID="reset-lunch" onPress={() => resetMeal("lunch")} style={styles.mini}><Text style={styles.miniText}>Réinitialiser</Text></Pressable>
           </View>
-          {targets.lunch.items.map((ln: Line, i: number) => <LineRow key={i} line={ln} eqLabels={eqLabels} testID={`lunch-${i}`} onChange={(l) => setLines(["lunch", "items"], targets.lunch.items.map((x: Line, j: number) => (j === i ? l : x)))} />)}
+          {targets.lunch.items.map((ln: Line, i: number) => <LineRow key={i} line={ln} eqLabels={eqLabels} equivalences={lib.equivalences} bonusG={lib.rules_info?.bread_vegetable_bonus_g ?? 80} testID={`lunch-${i}`} onChange={(l) => setLines(["lunch", "items"], targets.lunch.items.map((x: Line, j: number) => (j === i ? l : x)))} />)}
         </View>
 
         {/* Collation */}
@@ -285,7 +303,8 @@ export default function ConfigScreen() {
               <Pressable testID="reset-snack" onPress={() => resetMeal("snack")} style={styles.mini}><Text style={styles.miniText}>Réinit.</Text></Pressable>
             </View>
           </View>
-          {targets.snack.active && targets.snack.items.map((ln: Line, i: number) => <LineRow key={i} line={ln} eqLabels={eqLabels} testID={`snack-${i}`} onChange={(l) => setLines(["snack", "items"], targets.snack.items.map((x: Line, j: number) => (j === i ? l : x)))} />)}
+          {targets.snack.active && <Text style={styles.sub}>Le groupe Laitage de la collation reprend les équivalences du petit-déjeuner ; 0 g = non prescrit.</Text>}
+          {targets.snack.active && targets.snack.items.map((ln: Line, i: number) => <LineRow key={i} line={ln} eqLabels={eqLabels} equivalences={lib.equivalences} bonusG={lib.rules_info?.bread_vegetable_bonus_g ?? 80} testID={`snack-${i}`} onChange={(l) => setLines(["snack", "items"], targets.snack.items.map((x: Line, j: number) => (j === i ? l : x)))} />)}
         </View>
 
         {/* Dîner */}
@@ -297,7 +316,7 @@ export default function ConfigScreen() {
               <Pressable testID="reset-dinner" onPress={() => resetMeal("dinner")} style={styles.mini}><Text style={styles.miniText}>Réinit.</Text></Pressable>
             </View>
           </View>
-          {targets.dinner.items.map((ln: Line, i: number) => <LineRow key={i} line={ln} eqLabels={eqLabels} testID={`dinner-${i}`} onChange={(l) => setLines(["dinner", "items"], targets.dinner.items.map((x: Line, j: number) => (j === i ? l : x)))} />)}
+          {targets.dinner.items.map((ln: Line, i: number) => <LineRow key={i} line={ln} eqLabels={eqLabels} equivalences={lib.equivalences} bonusG={lib.rules_info?.bread_vegetable_bonus_g ?? 80} testID={`dinner-${i}`} onChange={(l) => setLines(["dinner", "items"], targets.dinner.items.map((x: Line, j: number) => (j === i ? l : x)))} />)}
         </View>
 
         {/* Règles professionnelles */}

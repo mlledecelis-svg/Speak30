@@ -312,6 +312,7 @@ export default function RecipeScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.compCat}>{c.category_label}</Text>
                   <Text style={styles.compFood}>{c.food_name}</Text>
+                  {!!c.rule_bonus && <Text style={styles.compFamily} testID={`rule-bonus-${i}`}>dont +{c.rule_bonus} g (pain / biscottes à la place du féculent)</Text>}
                 </View>
                 <View>
                   <Text style={styles.compGrams}>{people > 1 ? Math.round(c.grams * people) : c.grams} g</Text>
@@ -323,7 +324,7 @@ export default function RecipeScreen() {
               </Pressable>
               {subsFor === i && (
                 <View style={styles.subsBox} testID={`subs-${i}`}>
-                  <Text style={styles.subsTitle}>Équivalents (quantité ajustée) — touchez pour remplacer</Text>
+                  <Text style={styles.subsTitle}>Vous pouvez remplacer par (quantités équivalentes de la bibliothèque) — touchez pour choisir :</Text>
                   {!subs ? <ActivityIndicator size="small" color={themeColors.warning} /> : subs.length === 0 ? <Text style={styles.subsTitle}>Aucun équivalent disponible.</Text> : (
                     <View style={styles.subsRow}>
                       {subs.map((s: any) => (

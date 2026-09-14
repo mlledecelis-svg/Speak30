@@ -58,7 +58,7 @@ class TestIteration5:
         assert set(["date", "glasses", "goal", "progress", "history"]).issubset(d.keys())
         assert isinstance(d["date"], str) and len(d["date"]) == 10 and d["date"][4] == "-"
         assert d["glasses"] == 0
-        assert d["goal"] == 8
+        assert d["goal"] == 4  # 1 L de départ (4 verres de 250 ml)
         assert d["progress"] == 0
         assert isinstance(d["history"], list)
 
@@ -68,8 +68,7 @@ class TestIteration5:
         assert r.status_code == 200, r.text
         d = r.json()
         assert d["glasses"] == 3
-        # progress = round(3*100/8) = 38
-        assert d["progress"] == 38
+        assert d["progress"] == 75  # 3 verres sur 4
 
     def test_03_hydration_post_floor_at_zero(self):
         h = self._auth()

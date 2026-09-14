@@ -11,6 +11,7 @@ CATEGORIES = {
     "sweet": "Produits sucrés",
     "oleaginous": "Fruits oléagineux",
     "chocolate": "Chocolat",
+    "condiment": "Condiments & aromates",
 }
 
 SEC_FRUITVEG = "Fruits & légumes"
@@ -26,8 +27,9 @@ SECTION_ORDER = [SEC_FRUITVEG, SEC_MEAT, SEC_FISH, SEC_DAIRY, SEC_BAKERY, SEC_GR
 FOODS: Dict[str, Dict[str, Any]] = {}
 
 
-def F(fid: str, name: str, cat: str, section: str, tags: List[str] = None, raw: float = 1.0, unit_g: int = None, unit_label: str = None):
-    FOODS[fid] = {"id": fid, "name": name, "cat": cat, "section": section, "tags": tags or [], "raw": raw, "unit_g": unit_g, "unit_label": unit_label}
+def F(fid: str, name: str, cat: str, section: str, tags: List[str] = None, raw: float = 1.0, unit_g: int = None, unit_label: str = None, portion: float = None):
+    """portion : quantité (g) de cet aliment valant 1 portion de sa famille lorsqu'elle diffère de la famille (ex. thon 100 g vs poissons gras 90 g)."""
+    FOODS[fid] = {"id": fid, "name": name, "cat": cat, "section": section, "tags": tags or [], "raw": raw, "unit_g": unit_g, "unit_label": unit_label, "portion": portion}
 
 
 # --- Féculents (petit-déjeuner)
@@ -67,7 +69,7 @@ for fid, name in [("cabillaud", "Cabillaud"), ("colin", "Colin"), ("merlu", "Mer
     F(fid, name, "protein", SEC_FISH, ["white_fish", "fish", "cook"])
 for fid, name in [("saumon", "Saumon"), ("truite", "Truite"), ("maquereau", "Maquereau"), ("sardines", "Sardines"), ("hareng", "Hareng")]:
     F(fid, name, "protein", SEC_FISH, ["fatty_fish", "fish", "cook"])
-F("thon", "Thon au naturel", "protein", SEC_GROCERY, ["fish", "quick", "cold"])
+F("thon", "Thon au naturel", "protein", SEC_GROCERY, ["fish", "quick", "cold"], portion=100)
 for fid, name in [("crevettes", "Crevettes"), ("gambas", "Gambas"), ("saint_jacques", "Noix de Saint-Jacques"), ("crabe", "Crabe")]:
     F(fid, name, "protein", SEC_FISH, ["shellfish", "cook", "quick"])
 F("moules", "Moules", "protein", SEC_FISH, ["shell", "cook"])
@@ -84,13 +86,16 @@ F("seitan", "Seitan", "protein", SEC_PLANT, ["plant", "cook"])
 HOT_VEG = ["courgette", "brocoli", "carotte", "haricot_vert", "poireau", "champignons", "epinard", "aubergine", "poivron", "chou_fleur", "fenouil", "potimarron", "tomate", "ratatouille", "chou_bruxelles", "navet", "asperge", "endive", "blette"]
 RAW_VEG = ["salade_verte", "concombre", "tomate", "carotte", "radis", "mache", "roquette", "chou_rouge", "betterave", "celeri", "poivron"]
 for fid, name in [("courgette", "Courgettes"), ("brocoli", "Brocolis"), ("carotte", "Carottes"), ("haricot_vert", "Haricots verts"), ("poireau", "Poireaux"), ("champignons", "Champignons"), ("epinard", "Épinards"), ("aubergine", "Aubergines"), ("poivron", "Poivrons"), ("chou_fleur", "Chou-fleur"), ("fenouil", "Fenouil"), ("potimarron", "Potimarron"), ("tomate", "Tomates"), ("ratatouille", "Ratatouille"), ("chou_bruxelles", "Choux de Bruxelles"), ("navet", "Navets"), ("asperge", "Asperges"), ("endive", "Endives"), ("blette", "Blettes"),
-                  ("salade_verte", "Salade verte"), ("concombre", "Concombre"), ("radis", "Radis"), ("mache", "Mâche"), ("roquette", "Roquette"), ("chou_rouge", "Chou rouge"), ("betterave", "Betteraves"), ("celeri", "Céleri branche"), ("oignon", "Oignons")]:
+                  ("salade_verte", "Salade verte"), ("concombre", "Concombre"), ("radis", "Radis"), ("mache", "Mâche"), ("roquette", "Roquette"), ("chou_rouge", "Chou rouge"), ("betterave", "Betteraves"), ("celeri", "Céleri branche")]:
     tags = []
     if fid in HOT_VEG:
         tags.append("hot")
     if fid in RAW_VEG:
         tags.append("raw")
     F(fid, name, "vegetables", SEC_FRUITVEG, tags)
+# --- Condiments & aromates (jamais comptés comme portion de légumes)
+F("oignon", "Oignon", "condiment", SEC_FRUITVEG, ["aromatic"])
+F("ail", "Ail", "condiment", SEC_FRUITVEG, ["aromatic"])
 
 # --- Matières grasses
 F("huile_olive", "Huile d'olive", "fat", SEC_PLEASURE, [])
@@ -118,7 +123,7 @@ FRUITS = [
     ("pamplemousse", "Pamplemousse", 250, "pièce", [12, 1, 2, 3]), ("nectarine", "Nectarine", 150, "pièce", [6, 7, 8]), ("figue", "Figues", 50, "pièce", [8, 9, 10]),
 ]
 for fid, name, ug, ul, months in FRUITS:
-    F(fid, name, "fruit", SEC_FRUITVEG, ["fresh"] + (["season"] if months else []), unit_g=ug, unit_label=ul)
+    F(fid, name, "fruit", SEC_FRUITVEG, ["fresh"] + (["season"] if months else []), unit_g=ug, unit_label=ul, portion=(104 if fid in ("raisin", "cerises", "figue") else None))
     FOODS[fid]["months"] = months
 F("compote", "Compote sans sucres ajoutés", "fruit", SEC_GROCERY, ["compote"], unit_g=100, unit_label="pot")
 F("fruits_seches", "Fruits séchés", "fruit", SEC_GROCERY, ["dried"])
@@ -145,48 +150,48 @@ def E(eid: str, label: str, cat: str, foods: List[str], portion: float = 100):
 
 
 E("eq_breakfast_bread", "Pain complet / pain autre", "starch", ["pain_complet"], 40)
-E("eq_breakfast_crispbread", "Biscottes / cracottes", "starch", ["biscottes"], 30)
-E("eq_breakfast_english_muffin", "Muffin anglais complet", "starch", ["muffin_anglais"], 60)
+E("eq_breakfast_crispbread", "Biscottes / cracottes", "starch", ["biscottes"], 25)
+E("eq_breakfast_english_muffin", "Muffin anglais complet", "starch", ["muffin_anglais"], 40)
 E("eq_breakfast_oats", "Flocons d'avoine", "starch", ["avoine"], 30)
-E("eq_breakfast_granola", "Granola / muesli", "starch", ["granola"], 30)
-E("eq_breakfast_cheese", "Fromage", "dairy", ["fromage"], 30)
+E("eq_breakfast_granola", "Granola / muesli", "starch", ["granola"], 25)
+E("eq_breakfast_cheese", "Fromage", "dairy", ["fromage"], 25)
 E("eq_dairy_fresh_cheese", "Fromage frais", "dairy", ["fromage_frais"], 35)
-E("eq_dairy_yogurt", "Yaourt nature", "dairy", ["yaourt_nature"], 125)
+E("eq_dairy_yogurt", "Yaourt nature", "dairy", ["yaourt_nature"], 120)
 E("eq_dairy_fromage_blanc", "Fromage blanc / Skyr", "dairy", ["fromage_blanc", "skyr"], 100)
 E("eq_dairy_milk", "Lait demi-écrémé", "dairy", ["lait"], 150)
-E("eq_dairy_plant_milk", "Lait végétal", "dairy", ["lait_vegetal"], 150)
+E("eq_dairy_plant_milk", "Lait végétal", "dairy", ["lait_vegetal"], 160)
 E("eq_main_cheese", "Fromage", "dairy", ["fromage"], 30)
-E("eq_main_cream15", "Crème fraîche 15 %", "dairy", ["creme_15"], 30)
+E("eq_main_cream15", "Crème fraîche 15 %", "dairy", ["creme_15"], 40)
 E("eq_breakfast_protein_eggs", "Œufs entiers", "protein", ["oeuf"], 100)
-E("eq_breakfast_protein_ham", "Jambon blanc", "protein", ["jambon_blanc"], 50)
-E("eq_breakfast_protein_chicken", "Blanc de poulet en tranches", "protein", ["blanc_poulet_tranches"], 50)
-E("eq_breakfast_protein_turkey", "Blanc de dinde en tranches", "protein", ["blanc_dinde_tranches"], 50)
-E("eq_breakfast_protein_bacon", "Bacon maigre", "protein", ["bacon_maigre"], 40)
+E("eq_breakfast_protein_ham", "Jambon blanc", "protein", ["jambon_blanc"], 100)
+E("eq_breakfast_protein_chicken", "Blanc de poulet en tranches", "protein", ["blanc_poulet_tranches"], 100)
+E("eq_breakfast_protein_turkey", "Blanc de dinde en tranches", "protein", ["blanc_dinde_tranches"], 100)
+E("eq_breakfast_protein_bacon", "Bacon maigre", "protein", ["bacon_maigre"], 100)
 E("eq_protein_chicken", "Viandes blanches", "protein", ["poulet", "dinde", "pintade", "veau", "porc_maigre"], 100)
-E("eq_protein_beef", "Viandes rouges", "protein", ["boeuf", "boeuf_bavette", "boeuf_steak_hache5", "boeuf_filet", "boeuf_rosbif"], 100)
+E("eq_protein_beef", "Viandes rouges", "protein", ["boeuf", "boeuf_bavette", "boeuf_steak_hache5", "boeuf_filet", "boeuf_rosbif"], 90)
 E("eq_protein_white_fish", "Poissons blancs", "protein", ["cabillaud", "colin", "merlu", "merlan", "lieu_noir", "sole", "bar", "dorade", "lotte", "turbot"], 120)
-E("eq_protein_fatty_fish", "Poissons gras", "protein", ["saumon", "truite", "maquereau", "sardines", "hareng", "thon"], 100)
+E("eq_protein_fatty_fish", "Poissons gras", "protein", ["saumon", "truite", "maquereau", "sardines", "hareng", "thon"], 90)
 E("eq_protein_eggs", "Œufs", "protein", ["oeuf"], 100)
 E("eq_protein_shellfish", "Crustacés / coquillages", "protein", ["crevettes", "gambas", "saint_jacques", "moules", "crabe"], 120)
 E("eq_protein_deli", "Jambon / volaille en tranches", "protein", ["jambon_blanc", "blanc_poulet_tranches", "blanc_dinde_tranches"], 100)
-E("eq_protein_tofu", "Tofu / tempeh / seitan", "protein", ["tofu", "tempeh", "seitan"], 100)
-E("eq_vegetables", "Légumes variés", "vegetables", [f for f in FOODS if FOODS[f]["cat"] == "vegetables"], 100)
-E("eq_main_pasta", "Pâtes / gnocchis / riz / semoule / boulgour / quinoa", "starch", ["pates", "gnocchi", "riz", "riz_complet", "riz_noir", "semoule", "boulgour", "quinoa", "ble", "vermicelles", "polenta"], 120)
-E("eq_main_lentils", "Légumineuses", "starch", ["lentilles", "lentilles_corail", "pois_chiches", "haricots_rouges", "haricots_blancs", "flageolets", "petits_pois"], 120)
-E("eq_main_potato", "Pommes de terre / patate douce", "starch", ["pomme_de_terre", "patate_douce"], 150)
-E("eq_main_bread", "Pain complet / pain autre", "starch", ["pain_complet"], 50)
-E("eq_main_crispbread", "Biscottes / cracottes", "starch", ["biscottes"], 35)
+E("eq_protein_tofu", "Tofu / tempeh / seitan", "protein", ["tofu", "tempeh", "seitan"], 90)
+E("eq_vegetables", "Légumes variés", "vegetables", [f for f in FOODS if FOODS[f]["cat"] == "vegetables"], 120)
+E("eq_main_pasta", "Pâtes / gnocchis / riz / semoule / boulgour / quinoa", "starch", ["pates", "gnocchi", "riz", "riz_complet", "riz_noir", "semoule", "boulgour", "quinoa", "ble", "vermicelles", "polenta"], 100)
+E("eq_main_lentils", "Légumineuses", "starch", ["lentilles", "lentilles_corail", "pois_chiches", "haricots_rouges", "haricots_blancs", "flageolets", "petits_pois"], 100)
+E("eq_main_potato", "Pommes de terre / patate douce", "starch", ["pomme_de_terre", "patate_douce"], 130)
+E("eq_main_bread", "Pain complet / pain autre", "starch", ["pain_complet"], 35)
+E("eq_main_crispbread", "Biscottes / cracottes", "starch", ["biscottes"], 20)
 E("eq_main_oil", "Huile", "fat", ["huile_olive", "huile_colza"], 10)
-E("eq_main_butter", "Beurre", "fat", ["beurre"], 10)
-E("eq_breakfast_butter", "Beurre", "fat", ["beurre"], 10)
-E("eq_breakfast_peanut_butter", "Beurre de cacahuète 100 %", "fat", ["beurre_cacahuete"], 15)
+E("eq_main_butter", "Beurre", "fat", ["beurre"], 14)
+E("eq_breakfast_butter", "Beurre", "fat", ["beurre"], 8)
+E("eq_breakfast_peanut_butter", "Beurre de cacahuète 100 %", "fat", ["beurre_cacahuete"], 10)
 E("eq_fruit", "Fruit frais", "fruit", [fid for fid, *_ in FRUITS], 130)
 E("eq_fruit_compote", "Compote sans sucres ajoutés", "fruit", ["compote"], 100)
-E("eq_fruit_dried", "Fruits séchés", "fruit", ["fruits_seches"], 30)
-E("eq_fruit_juice", "Jus 100 % pur jus", "fruit", ["jus_fruits"], 150)
+E("eq_fruit_dried", "Fruits séchés", "fruit", ["fruits_seches"], 25)
+E("eq_fruit_juice", "Jus 100 % pur jus", "fruit", ["jus_fruits"], 140)
 E("eq_sweet_honey", "Miel", "sweet", ["miel"], 10)
-E("eq_sweet_jam", "Confiture", "sweet", ["confiture"], 15)
-E("eq_sweet_spread", "Pâte à tartiner", "sweet", ["pate_tartiner"], 15)
+E("eq_sweet_jam", "Confiture", "sweet", ["confiture"], 12)
+E("eq_sweet_spread", "Pâte à tartiner", "sweet", ["pate_tartiner"], 10)
 E("eq_snack_oleaginous", "Fruits oléagineux", "oleaginous", ["amandes", "noix", "noisettes", "noix_cajou"], 12)
 E("eq_snack_chocolate", "Chocolat noir 70 %", "chocolate", ["chocolat_noir"], 12)
 
@@ -197,6 +202,11 @@ MAIN_DAIRY_EQS = ["eq_dairy_yogurt", "eq_dairy_fromage_blanc", "eq_main_cheese",
 FRUIT_EQS_MAIN = ["eq_fruit", "eq_fruit_compote", "eq_fruit_dried"]
 FRUIT_EQS_BREAKFAST = ["eq_fruit", "eq_fruit_compote", "eq_fruit_dried", "eq_fruit_juice"]
 BREAKFAST_DAIRY_SWEET_EQS = ["eq_dairy_yogurt", "eq_dairy_fromage_blanc", "eq_dairy_milk", "eq_dairy_plant_milk"]
+# Collation : mêmes laitages qu'au petit-déjeuner (les laits restent réservés au petit-déjeuner)
+SNACK_DAIRY_EQS = ["eq_dairy_yogurt", "eq_dairy_fromage_blanc", "eq_dairy_fresh_cheese", "eq_breakfast_cheese"]
+# Règle professionnelle : pain ou biscottes à la place d'un féculent au repas principal -> +80 g de légumes
+BREAD_VEGETABLE_BONUS_G = 80
+BREAD_LIKE = ("pain_complet", "biscottes")
 
 
 def line(cat: str, ref: str, options: List[str], grams: float) -> Dict[str, Any]:
@@ -220,8 +230,8 @@ DEFAULT_PROGRAM: Dict[str, Any] = {
         ],
         "sweet_bread": [
             line("starch", "eq_breakfast_bread", ["eq_breakfast_bread", "eq_breakfast_crispbread"], 40),
-            line("fat", "eq_breakfast_butter", ["eq_breakfast_peanut_butter", "eq_breakfast_butter"], 10),
-            line("sweet", "eq_sweet_jam", ["eq_sweet_honey", "eq_sweet_jam", "eq_sweet_spread"], 10),
+            line("fat", "eq_breakfast_butter", ["eq_breakfast_peanut_butter", "eq_breakfast_butter"], 8),
+            line("sweet", "eq_sweet_jam", ["eq_sweet_honey", "eq_sweet_jam", "eq_sweet_spread"], 12),
             line("dairy", "eq_dairy_yogurt", BREAKFAST_DAIRY_SWEET_EQS, 120),
             line("fruit", "eq_fruit", FRUIT_EQS_BREAKFAST, 130),
         ],
@@ -243,6 +253,7 @@ DEFAULT_PROGRAM: Dict[str, Any] = {
             line("fruit", "eq_fruit", FRUIT_EQS_MAIN, 130),
             line("oleaginous", "eq_snack_oleaginous", ["eq_snack_oleaginous"], 12),
             line("chocolate", "eq_snack_chocolate", ["eq_snack_chocolate"], 12),
+            line("dairy", "eq_dairy_yogurt", SNACK_DAIRY_EQS, 0),
         ],
     },
     "dinner": {
@@ -271,12 +282,42 @@ DEFAULT_PROGRAM: Dict[str, Any] = {
 }
 
 
+def food_portion(eid: str, fid: str) -> float:
+    """Grammes de l'aliment valant 1 portion : valeur propre à l'aliment si définie, sinon celle de sa famille."""
+    fp = FOODS.get(fid, {}).get("portion")
+    return float(fp) if fp else float(EQUIVALENCES.get(eid, {}).get("portion", 100))
+
+
+def _round_g(g: float) -> float:
+    return float(round(g / 5) * 5) if g >= 20 else float(round(g))
+
+
+def line_equivalents(ref: str, grams: float, options: List[str]) -> List[Dict[str, Any]]:
+    """« Vous pouvez remplacer par : » — quantités réellement équivalentes à la quantité prescrite de l'aliment de référence."""
+    ref_portion = float(EQUIVALENCES.get(ref, {}).get("portion", 100))
+    out: List[Dict[str, Any]] = []
+    for eid in options:
+        eq = EQUIVALENCES.get(eid)
+        if not eq:
+            continue
+        groups: Dict[float, List[str]] = {}
+        for fid in eq["foods"]:
+            groups.setdefault(food_portion(eid, fid), []).append(fid)
+        main_group = max(groups.values(), key=len) if groups else []
+        for portion, fids in groups.items():
+            g = _round_g(float(grams) * portion / ref_portion)
+            label = eq["label"] if fids is main_group else " / ".join(FOODS[f]["name"] for f in fids)
+            out.append({"eq": eid, "label": label, "grams": g, "is_ref": eid == ref and fids is main_group, "foods": [FOODS[f]["name"] for f in fids] if 1 < len(fids) <= 12 else []})
+    return out
+
+
 def library_payload() -> Dict[str, Any]:
     return {
         "categories": CATEGORIES,
-        "equivalences": {k: {"id": v["id"], "label": v["label"], "cat": v["cat"]} for k, v in EQUIVALENCES.items()},
+        "equivalences": {k: {"id": v["id"], "label": v["label"], "cat": v["cat"], "portion": v["portion"], "foods": [{"id": f, "name": FOODS[f]["name"], "portion": food_portion(k, f)} for f in v["foods"] if f in FOODS]} for k, v in EQUIVALENCES.items()},
         "foods": [{"id": f["id"], "name": f["name"], "cat": f["cat"]} for f in FOODS.values()],
         "default_program": DEFAULT_PROGRAM,
+        "rules_info": {"bread_vegetable_bonus_g": BREAD_VEGETABLE_BONUS_G},
     }
 
 
@@ -294,7 +335,7 @@ KCAL = {
     "yaourt_nature": 60, "fromage_blanc": 75, "skyr": 65, "fromage": 350, "fromage_frais": 250, "creme_15": 165, "lait": 46, "lait_vegetal": 40,
     "banane": 90, "raisin": 70, "mangue": 60, "cerises": 65, "figue": 70, "compote": 60, "fruits_seches": 280, "jus_fruits": 45, "melon": 35, "fraises": 33, "framboises": 45, "pamplemousse": 40,
     "miel": 320, "confiture": 250, "pate_tartiner": 540, "amandes": 600, "noix": 660, "noisettes": 640, "noix_cajou": 580, "chocolat_noir": 560,
-    "salade_verte": 15, "concombre": 12, "tomate": 18, "champignons": 22, "courgette": 17, "epinard": 23, "brocoli": 34, "carotte": 40, "betterave": 43, "potimarron": 40, "petits_pois_": 80,
+    "oignon": 40, "ail": 130, "salade_verte": 15, "concombre": 12, "tomate": 18, "champignons": 22, "courgette": 17, "epinard": 23, "brocoli": 34, "carotte": 40, "betterave": 43, "potimarron": 40, "petits_pois_": 80,
 }
 
 

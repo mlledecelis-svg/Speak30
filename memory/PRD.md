@@ -140,6 +140,15 @@ Application mobile (Expo React Native) portage de https://elegant-starlight-eebd
 Freemium : 1 programme actif gratuit ; abonnement mensuel pour multi-programmes, export PDF de la semaine, synchronisation cloud multi-appareils et mode partage avec la diététicienne (réduit le friction de re-saisir chez le pro).
 
 
-## Session (juin 2026)
+## Itération 12 — bibliothèque d'équivalences & cohérence nutritionnelle (livrée)
+- **Équivalences « Cible »** basées sur la bibliothèque professionnelle (valeurs du site d'origine) : portions par famille (`foods.py` EQUIVALENCES) + portions propres à l'aliment (`FOODS[...]["portion"]` : thon 100 g, raisin/cerises/figue 104 g). Sous chaque ligne : « Vous pouvez remplacer X g de … par : • Y g de … » recalculé à chaque changement de quantité (`src/equivalents.ts`, `foods.line_equivalents`). Changer l'aliment de référence convertit la quantité.
+- **Règle pro pain/biscottes** : au déjeuner/dîner, pain ou biscottes à la place du féculent → +80 g de légumes ajoutés automatiquement (`engine.apply_bread_rule`, champ `rule_bonus` / `base_grams` sur les composants, affiché dans la fiche recette).
+- **Collation** : groupe Laitage (0 g par défaut, équivalences du petit-déjeuner hors laits) — migration automatique des cibles existantes.
+- **Ail & oignon** → catégorie « Condiments & aromates », plus jamais générés comme légume.
+- **Exclusions** : aliments ET assaisonnements (extras) exclus jamais proposés (génération, substituts, recherche).
+- **Recherche recettes élargie** (`GET /recipes/search?q=&meal=&filters=`) : idées hors menu compatibles avec portions/exclusions, filtres 🥡 À emporter / ⚡ ≤ 15 min / 🌱 Végétarien / 🍳 Sans four ; action `apply_recipe` (value `{blueprint_id, food_id}`) remplace le déjeuner/dîner du jour sélectionné.
+- **+29 recettes** (104 modèles de repas principaux), variété : une recette de la semaine précédente revient rarement (`prev_bps`), références d'aliments vérifiées.
+- **Nom du plat dynamique** après remplacement d'un ingrédient (`engine.rename_after_swap`).
+- **Hydratation** : objectif de départ 1 L (4 verres de 25 cl), réglable par 0,25 L, affichage en litres.
+- **Mes favoris** + **Contacter ma diététicienne** (mailto:aurelia.isnardon@gmail.com) sur l'Accueil et dans Réglages.
 - Question support : export vers un autre compte Emergent → répondu (Save to GitHub / Pull from GitHub).
-- Point restant (non demandé) : nom du plat statique après remplacement d ingrédient.

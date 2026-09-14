@@ -17,7 +17,7 @@ METHOD_OVERRIDES = {
 PASTA_METHODS = {"tomato_pasta", "bolognese", "creamy_pasta", "pesto_pasta", "carbonara", "gnocchi_skillet"}
 
 SHELLFISH = {"crevettes", "gambas", "saint_jacques", "crabe", "moules"}
-FATTY_FISH = {"saumon", "truite", "maquereau", "sardines", "hareng", "thon"}
+FATTY_FISH = {"saumon", "truite", "maquereau", "sardines", "hareng"}
 WHITE_MEAT = {"poulet", "dinde", "pintade", "veau", "porc_maigre"}
 
 

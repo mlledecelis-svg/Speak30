@@ -1,0 +1,55 @@
+{
+  "summary": "Iteration 12 backend + frontend: 11/11 pytest passent (test_iteration12.py, 3.1 s). Régressions backend/tests globales : 134/136 verts en 1er run (2 flakes réseau — timeout DNS sous xdist), 2/2 passent en isolation → 100 %. FRONTEND (390×844, testuser1@test.fr) : (a) Accueil — hydration-count affiche '0 L' puis '0,25 L' après hydration-plus ; +2× hydration-goal-inc et -1× hydration-goal-dec font passer l'Objectif de 2,5 L à 2,75 L par pas de 0,25 L ; home-contact rendu dans la ligne défilante des raccourcis. (b) /config — sous lunch-2 (féculents) le bloc lunch-2-equivalents affiche 'Vous pouvez remplacer 120 g de pâtes / gnocchis / riz / semoule / boulgour / quinoa par :' + '120 g de légumineuses', '155 g de pommes de terre / patate douce', '40 g de pain complet / pain autre', '25 g de biscottes / cracottes' + 'Règle pro : +80 g de légumes' ; après lunch-2-inc (+5) : 125/125/165/45 (biscottes reste 25). Carte Collation : snack-3-input a bien value=0 (ligne Laitages migrée). (c) Onglet Menus — search-toggle affiche filter-takeaway/quick/veg/no_oven ; saisir 'saumon' → search-results + suggestions-meta + suggestion-0 (5 résultats dans le programme + suggestion hors menu 'Papillote de saumon aux courgettes') + apply-0-lunch/apply-0-dinner ; clic apply-0-lunch remplace le déjeuner du lundi ('Gambas grillées, courgettes & pommes de terre' → 'Bowl frais saumon, betteraves & riz complet'). (d) Réglages (open-settings) — carte Raccourcis avec settings-favorites (navigue vers /favorites) et settings-contact (mailto:aurelia.isnardon@gmail.com). (e) /recipe?week=0&day=0&meal=lunch — clic component-0 déplie subs-0 titré 'Vous pouvez remplacer par (quantités équivalentes de la bibliothèque) — touchez pour choisir :' avec 17 chips convertis (Hareng 90 g, Maquereau 90 g, Thon au naturel 100 g, Bar 120 g, etc.) ; clic sub-hareng → nom du plat mis à jour 'Papillote de saumon aux courgettes' → 'Papillote d\\'hareng aux courgettes', kcal recalculée 626 → 617, bandeau 'Aliment remplacé, quantité adaptée à votre plan.'. BACKEND (fresh signup) : /api/library equivalences[eq].portion conformes (bread=40, crispbread=25, pasta=100, potato=130, main_bread=35, main_crispbread=20, beef=90, white_fish=120, fatty_fish=90) + foods[{id,name,portion}] (thon=100 dans fatty_fish ; raisin/cerises/figue=104 dans eq_fruit) ; rules_info.bread_vegetable_bonus_g=80 ; oignon+ail cat=condiment (aucun food cat=vegetables nommé oignon). /api/targets par défaut : snack.items contient dairy grams=0. /api/programs/generate : chaque component a base_grams ; quand féculent=pain_complet|biscottes au lunch/dinner, légumes ont rule_bonus=80 et grams=base_grams+80 ; aucun component vegetables food_id=oignon/ail ; conversions protéines (cible 100 g réf viandes blanches) : white_fish→120, red_meat→90, saumon→90, thon→100 (tous confirmés sur 14 déjeuners : white_fish=('sole',120), red_meat=('bavette',90), thon=('thon',100)). Exclusions ['poisson','ail'] : aucun component tags fish et aucun 'ail' dans recipe.extras ; /api/recipes/search?q=saumon renvoie 0 résultat matched_food=saumon avec poisson exclu. /api/recipes/search filtres OK : q=saumon meal=lunch → {name,image,minutes,lifestyle,matched_food} ; takeaway→tous 'À emporter' ; quick→quick:true ; veg→vegetarian:true. apply_recipe {blueprint_id:'adapt_papillote', food_id:'saumon'} → 200, blueprint_id ok, protéine saumon 90 g, can_undo=true ; action undo restaure le nom initial. set_component : substitutes avec grams convertis ; le nom du plat est mis à jour pour refléter le nouvel aliment. Hydration : nouveau compte → goal=4 ; PUT goal=5 → 200 ; PUT goal=1 → 400.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "/recipe (set_component name update)",
+        "issues": [
+          "Élision incorrecte sur 'hareng' (h aspiré) : après clic sub-hareng, le nom devient 'Papillote d\\'hareng aux courgettes' alors qu'il devrait être 'Papillote de hareng aux courgettes' (comme 'de haricots' déjà géré par le test régression test_06_recipe_names_elision). Non bloquant pour l'itération 12 (le nom est bien mis à jour et l'ancien aliment 'saumon' disparaît → règle 'contient nouveau ou (avec …)' respectée), mais à corriger dans la liste _H_ASPIRE de engine.py (ajouter 'hareng'). Reproduction : /recipe?week=0&day=0&meal=lunch → component-0 → sub-hareng."
+        ]
+      }
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration12.py",
+    "/app/test_reports/pytest/pytest_iter12.xml",
+    "/app/test_reports/pytest/pytest_all.xml",
+    "/tmp/it12_home.png",
+    "/tmp/it12_home2.png",
+    "/tmp/it12_config1.png",
+    "/tmp/it12_config_snack.png",
+    "/tmp/it12_planner1.png",
+    "/tmp/it12_planner_search.png",
+    "/tmp/it12_planner_afterapply.png",
+    "/tmp/it12_settings.png",
+    "/tmp/it12_favorites.png",
+    "/tmp/it12_recipe.png",
+    "/tmp/it12_recipe_after.png"
+  ],
+  "action_items": [
+    "Optionnel (non bloquant) : ajouter 'hareng' à la liste des mots avec h aspiré (voir engine.py) pour éviter 'Papillote d'hareng…' au profit de 'Papillote de hareng…'. Idem à vérifier pour d'autres h aspiré potentiels (haddock, houmous, harissa, si présents dans foods.py)."
+  ],
+  "critical_code_review_comments": [
+    "engine.py — bonus légumes pain/biscottes : correctement appliqué à la génération (component.rule_bonus=80, grams=base_grams+80) et exposé dans /api/library.rules_info.bread_vegetable_bonus_g. Conforme spec.",
+    "engine.py — conversions équivalences : depuis une cible protéine 100 g (réf viandes blanches), le portage vers un poisson blanc renvoie 120 g, viande rouge 90 g, saumon 90 g, thon 100 g. Cohérent avec eq_protein_white_fish/beef/fatty_fish + override thon=100.",
+    "engine.py — set_component recalcule le nom (contient nouvel aliment ou '(avec …)') et refresh_meal_metrics recalcule kcal (626→617 confirmé UI). Bon.",
+    "server.py — /api/hydration/goal accepte 2..12, 400 pour 1 ✓ ; /api/hydration/today défaut 4 pour un nouveau user ✓.",
+    "recipes.py — /api/recipes/search respecte exclusions (poisson→matched_food=saumon absent), filtres 'takeaway/quick/veg/no_oven' fonctionnels."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration12.py (nouveau — 11 tests)"
+  ],
+  "success_rate": {"backend": "100% (11/11 it12 + 134/134 régressions en isolation)", "frontend": "100%"},
+  "seed_data_creation": "Comptes éphémères test_it12_<uuid>@test.fr et test_hy_<uuid>@test.fr créés via /api/auth/signup pour les tests pytest (auto-nettoyés à l'expiration de session). testuser1@test.fr utilisé pour tous les tests UI (aucune modification permanente sauf hydration goal éventuellement ajusté par la carte hydratation — inoffensif).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Fichier pytest itération 12 : /app/backend/tests/test_iteration12.py (11 tests, 3 s). Lancement : EXPO_PUBLIC_BACKEND_URL=<url> pytest backend/tests/test_iteration12.py -v. Le test 'exclusions poisson/ail' vérifie l'absence de tag 'fish' sur components + absence de 'ail' dans meal.recipe.extras + /api/recipes/search?q=saumon ne renvoie aucun matched_food=saumon. Le test 'set_component conversion + name' choisit un sub différent du food actuel et vérifie (grams == sub.grams) + (old_food_name absent du new_recipe_name OU new_food_name/'avec' présent). Le test 'apply_recipe/undo' passe par blueprint_id=adapt_papillote, food_id=saumon → attend protein=saumon@90g + can_undo=true, puis action=undo restaure le nom initial. Régressions pytest globales : 2 flakes réseau (ConnectTimeout sous xdist charge élevée) peuvent apparaître ponctuellement — passent en isolation, pas un vrai bug.",
+  "rca_of_issue": "Aucun bug bloquant détecté sur l'itération 12. Seul point mineur cosmétique : élision incorrecte 'd'hareng' (h aspiré ignoré par _elide_de dans engine.py). Reproduction : POST /programs/{id}/meals/action action=set_component avec un composant renommé en 'hareng' (via UI /recipe → sub-hareng ou via API directe). Fix suggéré : étendre la liste des exceptions h aspiré dans engine.py à ['haricots','hareng','haddock','houmous','harissa',…] et regénérer le test test_06_recipe_names_elision pour couvrir 'de h' aspiré."
+}

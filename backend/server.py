@@ -13,7 +13,7 @@ import httpx
 import bcrypt
 from foods import library_payload, DEFAULT_PROGRAM
 from storage import init_storage, put_object, get_object, APP_NAME
-from engine import (generate_plan, shopping_for_week, replace_meal, replace_component, swap_day, can_swap, parse_program_text, normalize_program, MOODS, MEAL_LABELS, component_substitutes, set_component, refresh_meal_metrics)
+from engine import (generate_plan, shopping_for_week, replace_meal, replace_component, swap_day, can_swap, parse_program_text, normalize_program, MOODS, MEAL_LABELS, component_substitutes, set_component, refresh_meal_metrics, search_recipes, apply_blueprint)
 from recipes import MAIN_BLUEPRINTS, BREAKFAST_BLUEPRINTS
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
@@ -449,6 +449,14 @@ async def meal_substitutes(program_id: str, week: int = Query(...), day: int = Q
     return {"current": c, "substitutes": component_substitutes(m, index, await _targets(user.user_id))}
 
 
+@api_router.get("/recipes/search")
+async def recipes_search(q: str = Query(""), meal: str = Query("lunch"), filters: str = Query(""), user: User = Depends(get_current_user)):
+    """Idées de recettes compatibles avec le programme (au-delà du menu généré), exclusions respectées."""
+    prefs = await _prefs(user.user_id)
+    fl = [f for f in filters.split(",") if f]
+    return {"query": q, "meal": meal, "results": search_recipes(await _targets(user.user_id), q, meal, fl, set(prefs.get("avoid", [])))}
+
+
 @api_router.post("/programs/{program_id}/meals/action")
 async def meal_action(program_id: str, payload: MealActionIn, user: User = Depends(get_current_user)):
     doc = await _program(program_id, user.user_id)
@@ -467,7 +475,7 @@ async def meal_action(program_id: str, payload: MealActionIn, user: User = Depen
         await db.programs.update_one({"id": program_id}, {"$set": {"weeks": weeks, "undo": None}})
         return {"ok": True, "message": "↩ Dernière modification annulée.", "day": snap["day_data"], "week": snap["week"], "day_index": snap["day"], "can_undo": False}
     import copy as _copy
-    snapshot = {"week": payload.week, "day": payload.day, "day_data": _copy.deepcopy(day)} if payload.action in ("replace", "quick", "replace_component", "set_component", "swap_day") else None
+    snapshot = {"week": payload.week, "day": payload.day, "day_data": _copy.deepcopy(day)} if payload.action in ("replace", "quick", "replace_component", "set_component", "swap_day", "apply_recipe") else None
     if payload.action == "swap_day":
         if not can_swap(await _targets(user.user_id)) or not swap_day(day):
             raise HTTPException(status_code=400, detail="Interversion impossible : les deux repas doivent avoir exactement les mêmes catégories et portions.")
@@ -513,6 +521,16 @@ async def meal_action(program_id: str, payload: MealActionIn, user: User = Depen
             new_meal["done"] = meal.get("done", False)
             day["meals"][payload.meal] = new_meal
             message = "⚡ Version rapide proposée, toujours adaptée à votre plan." if payload.action == "quick" else "🔄 Nouveau repas proposé, toujours adapté à votre plan."
+        elif payload.action == "apply_recipe":
+            v = payload.value if isinstance(payload.value, dict) else {"blueprint_id": payload.value}
+            tgt = await _targets(user.user_id)
+            seed = int(datetime.now(timezone.utc).timestamp() * 1000) % 2147483647
+            new_meal = apply_blueprint(tgt, week, payload.day, payload.meal, str(v.get("blueprint_id", "")), v.get("food_id"), await _pantry(user.user_id), await _prefs(user.user_id), seed)
+            if not new_meal:
+                raise HTTPException(status_code=400, detail="Cette recette n'est pas compatible avec les portions ou exclusions de ce repas.")
+            new_meal["done"] = meal.get("done", False)
+            day["meals"][payload.meal] = new_meal
+            message = "🍽 Recette appliquée à ce repas, portions adaptées à votre plan."
         elif payload.action == "set_component":
             v = payload.value if isinstance(payload.value, dict) else {}
             tgt = await _targets(user.user_id)
@@ -671,7 +689,7 @@ def _today() -> str:
 
 async def _hydration(user_id: str, date: str) -> Dict[str, Any]:
     prefs = await _prefs(user_id)
-    goal = int(prefs.get("water_goal") or 8)
+    goal = int(prefs.get("water_goal") or 4)  # 4 verres de 250 ml = 1 L au départ
     doc = await db.hydration.find_one({"user_id": user_id, "date": date}, {"_id": 0})
     glasses = int(doc["glasses"]) if doc else 0
     history = await db.hydration.find({"user_id": user_id}, {"_id": 0, "date": 1, "glasses": 1}).sort("date", -1).to_list(7)

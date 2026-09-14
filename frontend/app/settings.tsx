@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { View, Text, Pressable, ScrollView, TextInput, Share, Platform, Alert, ActivityIndicator } from "react-native";
+import { View, Text, Pressable, ScrollView, TextInput, Share, Platform, Alert, ActivityIndicator, Linking } from "react-native";
+import { DIETITIAN_EMAIL } from "@/src/equivalents";
 import { api } from "@/src/api";
 import { useProgram } from "@/src/program-store";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -81,6 +82,20 @@ export default function SettingsScreen() {
         <Pressable testID="settings-close" onPress={() => router.back()} style={styles.close}><LucideIcon name="x" size={20} color={colors.onSurface} /></Pressable>
       </View>
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
+        <View style={styles.card} testID="quick-links-card">
+          <Text style={styles.cardTitle}>Raccourcis</Text>
+          <Pressable testID="settings-favorites" onPress={() => router.push("/favorites")} style={styles.option}>
+            <View style={styles.optionIcon}><LucideIcon name="heart" size={16} color={colors.warning} /></View>
+            <View style={{ flex: 1 }}><Text style={styles.optionLabel}>Mes favoris</Text><Text style={styles.optionHint}>Retrouver vos repas et recettes coup de cœur</Text></View>
+            <LucideIcon name="chevron-right" size={16} color={colors.muted} />
+          </Pressable>
+          <Pressable testID="settings-contact" onPress={() => Linking.openURL(`mailto:${DIETITIAN_EMAIL}?subject=${encodeURIComponent("Question sur mon plan alimentaire")}`)} style={[styles.option, { marginBottom: 0 }]}>
+            <View style={styles.optionIcon}><LucideIcon name="mail" size={16} color={colors.warning} /></View>
+            <View style={{ flex: 1 }}><Text style={styles.optionLabel}>Contacter ma diététicienne</Text><Text style={styles.optionHint}>{DIETITIAN_EMAIL}</Text></View>
+            <LucideIcon name="chevron-right" size={16} color={colors.muted} />
+          </Pressable>
+        </View>
+
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Apparence</Text>
           <Text style={styles.cardSub}>Choisissez l’ambiance de l’application. Le réglage est mémorisé sur cet appareil.</Text>

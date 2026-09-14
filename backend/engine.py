@@ -5,7 +5,7 @@ import unicodedata
 from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional, Tuple
 
-from foods import FOODS, EQUIVALENCES, CATEGORIES, DEFAULT_PROGRAM, SECTION_ORDER, kcal_for
+from foods import FOODS, EQUIVALENCES, CATEGORIES, DEFAULT_PROGRAM, SECTION_ORDER, kcal_for, food_portion, BREAD_VEGETABLE_BONUS_G, BREAD_LIKE, _round_g
 from recipes import MAIN_BLUEPRINTS, BREAKFAST_BLUEPRINTS, SAVORY_BF, IMG, build_main_steps, build_breakfast_steps, build_snack_steps
 
 MEAL_ORDER = ["breakfast", "lunch", "snack", "dinner"]
@@ -112,6 +112,9 @@ def normalize_program(p: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     for k in ("lunch", "snack", "dinner"):
         out[k]["items"] = _clean_lines(out[k].get("items"), DEFAULT_PROGRAM[k]["items"])
         out[k]["active"] = bool(out[k].get("active", True))
+    # migration : le groupe Laitage de la collation existe toujours (0 g = inactif)
+    if not any(ln["category"] == "dairy" for ln in out["snack"]["items"]):
+        out["snack"]["items"].append(copy.deepcopy(next(ln for ln in DEFAULT_PROGRAM["snack"]["items"] if ln["category"] == "dairy")))
     r = out["rules"]
     for key, dflt in DEFAULT_PROGRAM["rules"].items():
         if key not in r or r[key] is None:
@@ -151,14 +154,27 @@ class Ctx:
         self.avoid_bps = set(prefs.get("avoid", []))
         self.fav_bps = set(prefs.get("favorites", []))
         self.month = datetime.now(timezone.utc).month
+        self.prefer: set = set()
+        self.excluded_words = [_strip(e) for e in self.rules.get("exclusions", []) if _strip(e)]
 
     def food_ok(self, fid: str) -> bool:
         return fid in FOODS and fid not in self.excluded
+
+    def extras_ok(self, bp: Dict[str, Any]) -> bool:
+        """Une recette dont un ingrédient d'assaisonnement (ail, lait de coco…) est exclu n'est jamais proposée."""
+        for ex in bp.get("extras") or []:
+            e = _strip(ex)
+            if any(w == e or (len(w) >= 3 and w in e) for w in self.excluded_words):
+                return False
+        return True
 
     def pick(self, candidates: List[str], used: set = None, weight_pantry=True, forbidden: set = None) -> Optional[str]:
         cands = [c for c in candidates if self.food_ok(c) and (not forbidden or c not in forbidden)]
         if not cands:
             return None
+        wanted = [c for c in cands if c in self.prefer]
+        if wanted:
+            return wanted[0]
         fresh = [c for c in cands if not used or c not in used]
         pool = fresh or cands
         if weight_pantry and self.pantry_priority and self.pantry:
@@ -193,17 +209,34 @@ def line_candidates(ln: Dict[str, Any]) -> List[str]:
     return list(dict.fromkeys(out))
 
 
-def convert_grams(ln: Dict[str, Any], eid: str) -> float:
-    ref = EQUIVALENCES.get(ln["ref"], {}).get("portion", 100)
-    tgt = EQUIVALENCES.get(eid, {}).get("portion", 100)
-    g = float(ln["grams"]) * tgt / ref
-    return float(round(g / 5) * 5) if g >= 20 else float(round(g))
+def convert_grams(ln: Dict[str, Any], eid: str, fid: Optional[str] = None) -> float:
+    """Quantité réellement équivalente (bibliothèque) à la quantité prescrite de l'aliment de référence."""
+    ref = float(EQUIVALENCES.get(ln["ref"], {}).get("portion", 100))
+    tgt = food_portion(eid, fid) if fid else float(EQUIVALENCES.get(eid, {}).get("portion", 100))
+    return _round_g(float(ln["grams"]) * tgt / ref)
 
 
 def component(ln: Dict[str, Any], fid: str) -> Dict[str, Any]:
     eid = line_eq_for_food(ln, fid) or ln["ref"]
-    g = convert_grams(ln, eid)
-    return {"category": ln["category"], "category_label": CATEGORIES[ln["category"]], "food_id": fid, "food_name": FOODS[fid]["name"], "grams": g, "unit": "g", "eq": eid, "kcal": kcal_for(fid, g)}
+    g = convert_grams(ln, eid, fid)
+    return {"category": ln["category"], "category_label": CATEGORIES[ln["category"]], "food_id": fid, "food_name": FOODS[fid]["name"], "grams": g, "base_grams": g, "unit": "g", "eq": eid, "kcal": kcal_for(fid, g)}
+
+
+def apply_bread_rule(comps: List[Dict[str, Any]]) -> None:
+    """Règle pro : pain / biscottes à la place du féculent d'un repas principal -> +80 g de légumes, répartis sur les lignes légumes."""
+    bread = any(c["category"] == "starch" and c["food_id"] in BREAD_LIKE for c in comps)
+    vegs = [c for c in comps if c["category"] == "vegetables"]
+    for c in vegs:
+        base = float(c.get("base_grams", c["grams"]))
+        bonus = _round_g(BREAD_VEGETABLE_BONUS_G / len(vegs)) if bread else 0.0
+        c["base_grams"] = base
+        c["grams"] = base + bonus
+        c["rule_bonus"] = bonus
+        c["kcal"] = kcal_for(c["food_id"], c["grams"])
+
+
+def is_main_meal(meal: Dict[str, Any]) -> bool:
+    return not meal["recipe"].get("mode") and meal["recipe"].get("blueprint_id") != "snack"
 
 
 def active_lines(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -216,7 +249,7 @@ def recipe_name(bp: Dict[str, Any], comp: Dict[str, Dict[str, Any]]) -> str:
         name = name.replace("{protein}", comp["protein"]["food_name"].lower() if comp.get("protein") else "protéine")
         name = name.replace("{veg}", comp["vegetables"]["food_name"].lower() if comp.get("vegetables") else "légumes")
         name = name.replace("{starch}", comp["starch"]["food_name"].lower() if comp.get("starch") else "féculent")
-        name = re.sub(r"\b(de|De) ([aeiouyhéèêœ])", lambda m: ("d'" if m.group(1) == "de" else "D'") + m.group(2), name)
+        name = re.sub(r"\b(de|De) (?!hareng|haricot|homard)([aeiouyhéèêœ])", lambda m: ("d'" if m.group(1) == "de" else "D'") + m.group(2), name)
         name = name[0].upper() + name[1:]
     return name
 
@@ -230,6 +263,8 @@ def pick_image(bp: Dict[str, Any], comp: Dict[str, Dict[str, Any]]) -> str:
         return IMG["pasta"]
     if m == "risotto":
         return IMG["risotto"]
+    if m == "stew" and bp["image"] == "soup":
+        return IMG["soup"]
     if m in ("curry", "stew", "chili"):
         return IMG["curry"]
     if m in ("wok", "fried_rice", "fruit_skillet"):
@@ -299,6 +334,8 @@ def eligible_main_blueprints(lines: List[Dict[str, Any]], ctx: Ctx, avoid_bp: se
             continue
         if not set(bp["requires"]).issubset(cats):
             continue
+        if not ctx.extras_ok(bp):
+            continue
         ok = True
         for cat, key in (("protein", "proteins"), ("vegetables", "vegetables"), ("starch", "starches")):
             if cat not in cats or cat not in bp["requires"]:
@@ -326,7 +363,7 @@ def pantry_score(bp: Dict[str, Any], ctx: Ctx) -> int:
     return s
 
 
-def build_main_meal(meal_key: str, ctx: Ctx, difficulty: str, day_state: Dict[str, Any], week_state: Dict[str, Any], avoid_bp: set = frozenset(), mood: Optional[str] = None, quick_only: bool = False) -> Optional[Dict[str, Any]]:
+def build_main_meal(meal_key: str, ctx: Ctx, difficulty: str, day_state: Dict[str, Any], week_state: Dict[str, Any], avoid_bp: set = frozenset(), mood: Optional[str] = None, quick_only: bool = False, force_bp: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
     cfg = ctx.program[meal_key]
     lines = active_lines(cfg["items"])
     if not lines:
@@ -337,26 +374,33 @@ def build_main_meal(meal_key: str, ctx: Ctx, difficulty: str, day_state: Dict[st
         lines = [ln for ln in lines if ln["category"] != "fruit"]
     by_cat = {ln["category"]: ln for ln in lines}
     dp = day_state["proteins"]
-    bps = eligible_main_blueprints(lines, ctx, avoid_bp | week_state["bps"], mood, quick_only, dp)
-    if not bps:
-        bps = eligible_main_blueprints(lines, ctx, avoid_bp, mood, quick_only, dp)
-    if not bps:
-        bps = eligible_main_blueprints(lines, ctx, set(), None, False, dp)
-    if not bps:
-        bps = eligible_main_blueprints(lines, ctx, set(), None, False)
-    if not bps:
-        return None
-    weights = []
-    for bp in bps:
-        w = 1.0 + pantry_score(bp, ctx) * 1.5
-        if bp["id"] in ctx.fav_bps:
-            w += 1.5
-        if bp["method"] in day_state["methods"]:
-            w *= 0.3
-        if bp["adaptive"]:
-            w *= 0.8
-        weights.append(w)
-    bp = ctx.rng.choices(bps, weights=weights, k=1)[0]
+    if force_bp is not None:
+        if force_bp not in eligible_main_blueprints(lines, ctx, set(), None, False):
+            return None
+        bp = force_bp
+    else:
+        bps = eligible_main_blueprints(lines, ctx, avoid_bp | week_state["bps"], mood, quick_only, dp)
+        if not bps:
+            bps = eligible_main_blueprints(lines, ctx, avoid_bp, mood, quick_only, dp)
+        if not bps:
+            bps = eligible_main_blueprints(lines, ctx, set(), None, False, dp)
+        if not bps:
+            bps = eligible_main_blueprints(lines, ctx, set(), None, False)
+        if not bps:
+            return None
+        weights = []
+        for bp in bps:
+            w = 1.0 + pantry_score(bp, ctx) * 1.5
+            if bp["id"] in ctx.fav_bps:
+                w += 1.5
+            if bp["method"] in day_state["methods"]:
+                w *= 0.3
+            if bp["id"] in week_state.get("prev_bps", set()):
+                w *= 0.25  # variété : une recette servie la semaine précédente revient rarement
+            if bp["adaptive"]:
+                w *= 0.8
+            weights.append(w)
+        bp = ctx.rng.choices(bps, weights=weights, k=1)[0]
     comp: Dict[str, Dict[str, Any]] = {}
     comps: List[Dict[str, Any]] = []
     for ln in lines:
@@ -392,6 +436,7 @@ def build_main_meal(meal_key: str, ctx: Ctx, difficulty: str, day_state: Dict[st
         comps.append(c)
     if "protein" in bp["requires"] and "protein" not in comp:
         return None
+    apply_bread_rule(comps)
     steps = build_main_steps(bp, comp)
     recipe = make_recipe(bp, comp, steps, difficulty)
     return finalize_meal(recipe, comps, ctx)
@@ -552,8 +597,10 @@ def generate_plan(program: Dict[str, Any], pantry: List[Dict[str, Any]], prefs: 
     program = normalize_program(program)
     ctx = Ctx(program, pantry, prefs, seed)
     weeks = []
+    prev_bps: set = set()
     for w in range(int(program["duration_weeks"])):
         ws = new_week_state()
+        ws["prev_bps"] = prev_bps
         main_count = sum(1 for m in ("lunch", "dinner") if program[m]["active"]) * 7
         sched = difficulty_schedule(main_count, ctx.rng)
         si = 0
@@ -590,6 +637,7 @@ def generate_plan(program: Dict[str, Any], pantry: List[Dict[str, Any]], prefs: 
             if featured:
                 break
         weeks.append({"week": w + 1, "days": days, "featured": featured})
+        prev_bps = set(ws["bps"])
     return weeks
 
 
@@ -741,8 +789,8 @@ def component_substitutes(meal: Dict[str, Any], index: int, program: Dict[str, A
                 elif fid not in allowed:
                     continue
             seen.add(fid)
-            g = float(c["grams"]) * (eq["portion"] / (src_eq["portion"] if src_eq else eq["portion"]))
-            g = float(round(g / 5) * 5) if g >= 20 else float(round(g))
+            src_portion = food_portion(eid, c["food_id"]) if src_eq else food_portion(oid, fid)
+            g = _round_g(float(c.get("base_grams", c["grams"])) * food_portion(oid, fid) / src_portion)
             out.append({"food_id": fid, "food_name": FOODS[fid]["name"], "grams": g, "eq": oid, "eq_label": eq["label"], "same_family": oid == eid})
     out.sort(key=lambda x: (not x["same_family"], x["food_name"]))
     return out[:24]
@@ -754,19 +802,52 @@ def set_component(meal: Dict[str, Any], index: int, food_id: str, program: Dict[
     if not pick:
         return False
     c = meal["components"][index]
+    old_name = c["food_name"]
     c["food_id"], c["food_name"], c["grams"], c["eq"] = pick["food_id"], pick["food_name"], pick["grams"], pick["eq"]
+    c["base_grams"] = pick["grams"]
     ctx = Ctx(normalize_program(program), pantry, {}, 0)
+    after_component_change(meal, old_name, c["food_name"], ctx)
+    return True
+
+
+def rename_after_swap(name: str, old_food: str, new_food: str) -> str:
+    """Le nom du plat suit l'aliment réellement servi (ex. « Escalope de dinde grillée » -> « Filet de poulet grillé »)."""
+    if _strip(old_food) == _strip(new_food):
+        return name
+    cap = lambda t: (t[0].upper() + t[1:]) if t else t
+    old_l, new_l = old_food.lower(), new_food.lower()
+    if old_l in name.lower():
+        i = name.lower().index(old_l)
+        return cap(name[:i] + new_l + name[i + len(old_l):])
+    # mot-clé : dernier mot significatif de l'ancien aliment (« dinde », « saumon », « brocolis »…)
+    words = [w for w in re.split(r"[\s'’]+", old_l) if len(w) > 3 and w not in ("filet", "escalope", "blanc", "steak", "hache", "haché", "complet", "nature", "frais", "tranches")]
+    for w in reversed(words):
+        m = re.search(r"\b" + re.escape(w) + r"s?\b", name, re.I)
+        if m:
+            return cap(name[:m.start()] + new_l + name[m.end():])
+    if new_l in name.lower():
+        return name
+    return f"{name} (avec {new_l})"
+
+
+def after_component_change(meal: Dict[str, Any], old_name: str, new_name: str, ctx: Ctx) -> None:
     bp = next((b for b in MAIN_BLUEPRINTS + BREAKFAST_BLUEPRINTS if b["id"] == meal["recipe"]["blueprint_id"]), None)
+    if is_main_meal(meal):
+        apply_bread_rule(meal["components"])
     comp = {x["category"]: x for x in meal["components"]}
     if bp:
         prefix = (("Petit-déjeuner salé — " if meal["recipe"].get("mode") == "savory" else "Petit-déjeuner sucré — ") if meal["recipe"].get("mode") else "")
-        meal["recipe"]["name"] = prefix + recipe_name(bp, comp)
+        if "{" in bp["label"]:
+            meal["recipe"]["name"] = prefix + recipe_name(bp, comp)
+        else:
+            meal["recipe"]["name"] = rename_after_swap(meal["recipe"]["name"], old_name, new_name)
         meal["recipe"]["steps"] = build_breakfast_steps(bp, comp) if bp in BREAKFAST_BLUEPRINTS else build_main_steps(bp, comp)
     else:
         meal["recipe"]["steps"] = build_snack_steps(comp)
+        names = " & ".join(x["food_name"].lower() for x in meal["components"])
+        meal["recipe"]["name"] = f"Collation — {names[0].upper() + names[1:]}"
     meal["pantry_used"] = [x["food_name"] for x in meal["components"] if x["food_id"] in ctx.pantry]
     refresh_meal_metrics(meal, bp)
-    return True
 
 
 def refresh_meal_metrics(meal: Dict[str, Any], bp: Optional[Dict[str, Any]]):
@@ -794,19 +875,93 @@ def replace_component(meal: Dict[str, Any], index: int, program: Dict[str, Any],
     if not cands:
         return False
     fid = ctx.rng.choice(cands)
+    old_name = c["food_name"]
+    base = float(c.get("base_grams", c["grams"]))
+    c["base_grams"] = _round_g(base * food_portion(eid, fid) / food_portion(eid, c["food_id"]))
+    c["grams"] = c["base_grams"]
     c["food_id"] = fid
     c["food_name"] = FOODS[fid]["name"]
-    comp = {x["category"]: x for x in meal["components"]}
-    if bp:
-        meal["recipe"]["name"] = (("Petit-déjeuner salé — " if meal["recipe"].get("mode") == "savory" else "Petit-déjeuner sucré — ") if meal["recipe"].get("mode") else "") + recipe_name(bp, comp)
-        meal["recipe"]["steps"] = build_breakfast_steps(bp, comp) if bp in BREAKFAST_BLUEPRINTS else build_main_steps(bp, comp)
-    else:
-        meal["recipe"]["steps"] = build_snack_steps(comp)
-        names = " & ".join(x["food_name"].lower() for x in meal["components"])
-        meal["recipe"]["name"] = f"Collation — {names[0].upper() + names[1:]}"
-    meal["pantry_used"] = [x["food_name"] for x in meal["components"] if x["food_id"] in ctx.pantry]
-    refresh_meal_metrics(meal, bp)
+    after_component_change(meal, old_name, c["food_name"], ctx)
     return True
+
+
+def _bp_foods(bp: Dict[str, Any], lines: List[Dict[str, Any]]) -> Dict[str, List[str]]:
+    by_cat = {ln["category"]: ln for ln in lines}
+    out: Dict[str, List[str]] = {}
+    for cat, key in (("protein", "proteins"), ("vegetables", "vegetables"), ("starch", "starches")):
+        if cat in by_cat:
+            out[cat] = [f for f in resolve_tag(bp[key], cat) if f in line_candidates(by_cat[cat])]
+    return out
+
+
+def search_recipes(program: Dict[str, Any], query: str, meal_key: str = "lunch", filters: List[str] = (), avoid: set = frozenset(), limit: int = 20) -> List[Dict[str, Any]]:
+    """Idées de recettes compatibles avec le programme (portions, exclusions, envies) — au-delà du menu déjà généré."""
+    program = normalize_program(program)
+    ctx = Ctx(program, [], {"avoid": list(avoid)}, 0)
+    key = meal_key if meal_key in ("lunch", "dinner") else "lunch"
+    lines = active_lines(program[key]["items"])
+    if not lines:
+        return []
+    q = _strip(query)
+    out = []
+    for bp in eligible_main_blueprints(lines, ctx, set(), None, False):
+        foods = _bp_foods(bp, lines)
+        ok_foods = {cat: [f for f in fl if ctx.food_ok(f)] for cat, fl in foods.items()}
+        matched: Optional[str] = None
+        if q:
+            if q in _strip(bp["label"]) and not any(q in _strip(FOODS[f]["name"]) for f in ctx.excluded):
+                matched = ""
+            else:
+                for fl in ok_foods.values():
+                    for f in fl:
+                        if q in _strip(FOODS[f]["name"]) or q in _strip(f.replace("_", " ")):
+                            matched = f
+                            break
+                    if matched is not None:
+                        break
+            if matched is None:
+                continue
+        probe = {"protein": ok_foods.get("protein", [None])[:1], "vegetables": ok_foods.get("vegetables", [None])[:1], "starch": ok_foods.get("starch", [None])[:1]}
+        comp = {}
+        for cat, fl in probe.items():
+            fid = matched if (matched and matched in ok_foods.get(cat, [])) else (fl[0] if fl else None)
+            if fid:
+                comp[cat] = {"food_name": FOODS[fid]["name"], "food_id": fid}
+        tags = FOODS[comp["protein"]["food_id"]]["tags"] if comp.get("protein") else []
+        preview = make_recipe(bp, {k: dict(v, grams=0, kcal=0) for k, v in comp.items()}, [], "easy")
+        veg_only = all("plant" in FOODS[f]["tags"] or "egg" in FOODS[f]["tags"] for f in ok_foods.get("protein", [])) if ok_foods.get("protein") else True
+        item = {"blueprint_id": bp["id"], "name": preview["name"], "image": preview["image"], "minutes": bp["minutes"], "quick": preview["quick"], "lifestyle": preview["lifestyle"], "moods": bp["moods"],
+                "vegetarian": veg_only or "veg" in bp["moods"], "matched_food": matched or None, "ingredients": [FOODS[f]["name"] for cat in ("protein", "vegetables", "starch") for f in ok_foods.get(cat, [])[:3]]}
+        if "takeaway" in filters and "À emporter" not in item["lifestyle"]:
+            continue
+        if "quick" in filters and not item["quick"]:
+            continue
+        if "no_oven" in filters and "Sans four" not in item["lifestyle"]:
+            continue
+        if "veg" in filters and not item["vegetarian"]:
+            continue
+        out.append(item)
+    out.sort(key=lambda x: (x["matched_food"] is None and bool(q), x["name"]))
+    return out[:limit]
+
+
+def apply_blueprint(program: Dict[str, Any], week: Dict[str, Any], day_index: int, meal_key: str, bp_id: str, prefer_food: Optional[str], pantry, prefs, seed: int) -> Optional[Dict[str, Any]]:
+    """Remplace un déjeuner / dîner par la recette choisie, avec les portions et règles du programme."""
+    bp = next((b for b in MAIN_BLUEPRINTS if b["id"] == bp_id), None)
+    if not bp or meal_key not in ("lunch", "dinner"):
+        return None
+    program = normalize_program(program)
+    day = week["days"][day_index]
+    ds = day_state_from(day, meal_key)
+    ws = week_state_from(week, (day_index, meal_key))
+    for attempt in range(12):
+        ctx = Ctx(program, pantry, prefs, seed + attempt * 7919)
+        if prefer_food:
+            ctx.prefer = {prefer_food}
+        m = build_main_meal(meal_key, ctx, "easy", {**ds, "proteins": set(ds["proteins"]), "methods": set(ds["methods"])}, {**ws, "bps": set(ws["bps"])}, set(), None, False, force_bp=bp)
+        if m:
+            return m
+    return None
 
 
 def meal_signature(meal: Dict[str, Any]) -> List[str]:

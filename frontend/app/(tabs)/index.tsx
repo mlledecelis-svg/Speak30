@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { api } from "@/src/api";
-import { View, Text, Pressable, ScrollView, ActivityIndicator, RefreshControl } from "react-native";
+import { View, Text, Pressable, ScrollView, ActivityIndicator, RefreshControl, Linking } from "react-native";
+import { DIETITIAN_EMAIL } from "@/src/equivalents";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -239,6 +240,11 @@ export default function Home() {
                 <LucideIcon name="refrigerator" size={18} color={themeColors.warning} />
                 <Text style={styles.quickLabel}>Ma maison</Text>
                 <Text style={styles.quickHint}>Ce que j’ai déjà chez moi</Text>
+              </Pressable>
+              <Pressable testID="home-contact" onPress={() => Linking.openURL(`mailto:${DIETITIAN_EMAIL}?subject=${encodeURIComponent("Question sur mon plan alimentaire")}`)} style={styles.quick}>
+                <LucideIcon name="mail" size={18} color={themeColors.warning} />
+                <Text style={styles.quickLabel}>Ma diététicienne</Text>
+                <Text style={styles.quickHint}>Écrire à Aurelia Isnardon</Text>
               </Pressable>
             </ScrollView>
 
