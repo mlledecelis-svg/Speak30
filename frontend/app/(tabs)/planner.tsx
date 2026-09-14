@@ -9,7 +9,7 @@ import { exportWeekPdf, exportFridgeSheet, exportProgramPdf } from "@/src/export
 import { api } from "@/src/api";
 
 import { makeStyles, colors as themeColors } from "@/src/theme";
-import { useProgram, MEAL_ORDER, MEAL_LABELS, MEAL_ICONS, currentWeekIndex } from "@/src/program-store";
+import { useProgram, MEAL_ORDER, MEAL_LABELS, MEAL_ICONS, currentWeekIndex, dishUrl } from "@/src/program-store";
 
 const useStyles = makeStyles((colors) => ({
   root: { flex: 1, backgroundColor: colors.surface },
@@ -271,7 +271,7 @@ export default function Planner() {
                 {results.length === 0 && <Text style={styles.emptyHint}>Aucun repas de votre menu ne correspond. Découvrez ci-dessous d’autres recettes compatibles avec votre plan.</Text>}
                 {results.map((r, i) => (
                   <Pressable key={`${r.week}-${r.day}-${r.meal}`} testID={`search-result-${i}`} onPress={() => router.push({ pathname: "/recipe", params: { week: String(r.week), day: String(r.day), meal: r.meal } })} style={styles.row}>
-                    <Image source={photoUrl(r.m.photo) ?? r.m.recipe.image} style={styles.thumb} contentFit="cover" transition={200} />
+                    <Image source={photoUrl(r.m.photo) ?? dishUrl(r.m.recipe.image)} style={styles.thumb} contentFit="cover" transition={200} />
                     <View style={styles.rowBody}>
                       <View style={styles.rowLabel}><Text style={styles.rowLabelText}>S{r.week + 1} · {r.dayName} · {MEAL_LABELS[r.meal]}</Text></View>
                       <Text style={styles.rowName}>{r.m.recipe.name}</Text>
@@ -283,7 +283,7 @@ export default function Planner() {
                 {suggestions !== null && suggestions.length > 0 && <Text style={styles.emptyHint}>Hors de votre menu actuel, mais adaptées à vos portions et exclusions. Appliquez-en une au déjeuner ou au dîner du {day?.day?.toLowerCase() ?? "jour"} sélectionné (S{week + 1}).</Text>}
                 {(suggestions ?? []).map((sug, i) => (
                   <View key={sug.blueprint_id} testID={`suggestion-${i}`} style={styles.row}>
-                    <Image source={sug.image} style={styles.thumb} contentFit="cover" transition={200} />
+                    <Image source={dishUrl(sug.image)} style={styles.thumb} contentFit="cover" transition={200} />
                     <View style={styles.rowBody}>
                       <View style={styles.rowLabel}><Text style={styles.rowLabelText}>{sug.minutes} min{sug.lifestyle?.includes("À emporter") ? " · 🥡 à emporter" : ""}{sug.vegetarian ? " · 🌱" : ""}</Text></View>
                       <Text style={styles.rowName}>{sug.name}</Text>
@@ -343,7 +343,7 @@ export default function Planner() {
               return (
                 <Animated.View key={`${week}-${dayIdx}-${m}`} entering={FadeInDown.delay(idx * 70).duration(350)}>
                 <Pressable testID={`meal-row-${m}`} onPress={() => router.push({ pathname: "/recipe", params: { week: String(week), day: String(dayIdx), meal: m } })} style={[styles.row, meal.done && styles.rowDone]}>
-                  <Image source={photoUrl(meal.photo) ?? meal.recipe.image} style={styles.thumb} contentFit="cover" transition={200} />
+                  <Image source={photoUrl(meal.photo) ?? dishUrl(meal.recipe.image)} style={styles.thumb} contentFit="cover" transition={200} />
                   <View style={styles.rowBody}>
                     <View style={styles.rowLabel}>
                       <LucideIcon name={MEAL_ICONS[m] as any} size={11} color={themeColors.warning} />

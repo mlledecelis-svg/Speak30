@@ -11,7 +11,7 @@ import LucideIcon from "@react-native-vector-icons/lucide";
 
 import { makeStyles, colors as themeColors } from "@/src/theme";
 import { useAuth } from "@/src/auth";
-import { useProgram, MEAL_ORDER, MEAL_LABELS, MEAL_TIMES, currentWeekIndex } from "@/src/program-store";
+import { useProgram, MEAL_ORDER, MEAL_LABELS, MEAL_TIMES, currentWeekIndex, dishUrl } from "@/src/program-store";
 import { MealCard } from "@/src/components/MealCard";
 import { HydrationCard } from "@/src/components/HydrationCard";
 import { BrandLogo } from "@/src/components/BrandLogo";
@@ -154,7 +154,7 @@ export default function Home() {
         </View>
 
         <View style={styles.hero}>
-          <Image source={day?.meals?.[nextMeal ?? active[0]]?.recipe.image ?? HERO} style={styles.heroImg} contentFit="cover" transition={300} />
+          <Image source={dishUrl(day?.meals?.[nextMeal ?? active[0]]?.recipe.image) ?? HERO} style={styles.heroImg} contentFit="cover" transition={300} />
           <LinearGradient colors={["transparent", "rgba(10,10,10,0.35)", "rgba(10,10,10,0.9)"]} style={styles.scrim} />
           <View style={styles.heroContent}>
             <Text style={styles.heroLabel}>Aujourd’hui{weekData ? ` · Semaine ${weekData.week}` : ""}</Text>

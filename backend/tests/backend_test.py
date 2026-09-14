@@ -129,7 +129,7 @@ class TestFullFlow:
                     assert isinstance(r_["steps"], list) and len(r_["steps"]) > 0
                     assert r_["minutes"] > 0
                     assert r_["difficulty_label"]
-                    assert isinstance(r_.get("image"), str) and r_["image"].startswith("http")
+                    assert isinstance(r_.get("image"), str) and (r_["image"].startswith("http") or r_["image"].startswith("/api/dishes/"))
                     assert isinstance(meal["components"], list) and len(meal["components"]) > 0
                     for c in meal["components"]:
                         assert c["grams"] > 0

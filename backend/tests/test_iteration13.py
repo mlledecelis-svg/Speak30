@@ -75,6 +75,10 @@ def _check_image_consistency(prog, ctx_label: str):
                 r = meal.get("recipe") or {}
                 bp = _bp_by_id(r.get("blueprint_id"))
                 img = r.get("image", "")
+                if img.startswith("/api/dishes/"):
+                    # Photo générée par IA pour cette recette précise (et cette protéine) : cohérente par construction.
+                    stats["total_main"] += 1 if mk in ("lunch", "dinner") else 0
+                    continue
                 pid = _photo_id(img)
                 # Tartines petit-déjeuner
                 if mk == "breakfast" and r.get("blueprint_id") in ("tartines_gourmandes", "tartines_salees"):

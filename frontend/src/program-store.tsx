@@ -8,6 +8,8 @@ export type Recipe = { kcal?: number; lifestyle?: string[]; blueprint_id: string
 export type Meal = { recipe: Recipe; components: Component[]; pantry_used: string[]; done: boolean; favorite: boolean; rating: string | null; photo?: string | null };
 
 const BASE = process.env.EXPO_PUBLIC_BACKEND_URL as string;
+/** Les photos de plats générées par IA sont servies par le backend (/api/dishes/…) : préfixe l'URL relative. */
+export const dishUrl = (u?: string | null) => (u && u.startsWith("/") ? `${BASE}${u}` : u ?? undefined);
 export const MEAL_TIMES: Record<string, [number, number]> = { breakfast: [7, 30], lunch: [12, 30], snack: [16, 30], dinner: [19, 30] };
 export type Day = { day: string; meals: Record<string, Meal> };
 export type Week = { week: number; days: Day[]; featured?: { day: number; meal: string } | null };

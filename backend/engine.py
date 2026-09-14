@@ -7,6 +7,7 @@ from typing import Dict, List, Any, Optional, Tuple
 
 from foods import FOODS, EQUIVALENCES, CATEGORIES, DEFAULT_PROGRAM, SECTION_ORDER, kcal_for, food_portion, BREAD_VEGETABLE_BONUS_G, BREAD_LIKE, _round_g
 from recipes import MAIN_BLUEPRINTS, BREAKFAST_BLUEPRINTS, SAVORY_BF, IMG, build_main_steps, build_breakfast_steps, build_snack_steps
+from dish_images import dish_image_url, DISH_DIR
 
 MEAL_ORDER = ["breakfast", "lunch", "snack", "dinner"]
 MEAL_LABELS = {"breakfast": "Petit-déjeuner", "lunch": "Déjeuner", "snack": "Collation", "dinner": "Dîner"}
@@ -245,6 +246,17 @@ def active_lines(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 def recipe_name(bp: Dict[str, Any], comp: Dict[str, Dict[str, Any]]) -> str:
     name = bp["label"]
+    if "{" not in name:
+        # Recette à nom fixe : le nom suit l'aliment réellement servi (ex. « Cabillaud… » devient « Merlu… » si le merlu est servi)
+        for cat, key in (("protein", "proteins"), ("vegetables", "vegetables"), ("starch", "starches")):
+            c = comp.get(cat)
+            spec = bp.get(key)
+            if not c or not isinstance(spec, list) or len(spec) < 2 or spec[0] not in FOODS or c["food_id"] == spec[0]:
+                continue
+            renamed = rename_after_swap(name, FOODS[spec[0]]["name"], c["food_name"])
+            if "(avec " not in renamed:
+                name = renamed
+        return name
     if "{" in name:
         name = name.replace("{protein}", comp["protein"]["food_name"].lower() if comp.get("protein") else "protéine")
         name = name.replace("{veg}", comp["vegetables"]["food_name"].lower() if comp.get("vegetables") else "légumes")
@@ -255,7 +267,15 @@ def recipe_name(bp: Dict[str, Any], comp: Dict[str, Dict[str, Any]]) -> str:
 
 
 def pick_image(bp: Dict[str, Any], comp: Dict[str, Dict[str, Any]]) -> str:
-    """Photo cohérente avec le plat : l'aliment réellement servi (cabillaud ≠ saumon) puis la technique."""
+    """Photo du plat : image générée par IA pour cette recette (et cette protéine) si disponible, sinon photo de banque cohérente."""
+    ai = dish_image_url(bp, comp)
+    if ai:
+        return ai
+    return stock_image(bp, comp)
+
+
+def stock_image(bp: Dict[str, Any], comp: Dict[str, Dict[str, Any]]) -> str:
+    """Photo de banque cohérente avec le plat : l'aliment réellement servi (cabillaud ≠ saumon) puis la technique."""
     m = bp["method"]
     p = comp.get("protein")
     v = comp.get("vegetables")
@@ -364,6 +384,15 @@ def pick_image(bp: Dict[str, Any], comp: Dict[str, Dict[str, Any]]) -> str:
     return IMG.get(bp["image"], IMG["bowl"])
 
 
+def breakfast_image(bp: Dict[str, Any]) -> str:
+    return dish_image_url(bp, {}) or IMG.get(bp["image"], IMG["bowl"])
+
+
+def snack_image() -> str:
+    import os
+    return "/api/dishes/snack.jpg" if os.path.exists(os.path.join(DISH_DIR, "snack.jpg")) else IMG["snack"]
+
+
 def make_recipe(bp: Dict[str, Any], comp: Dict[str, Dict[str, Any]], steps: List[str], difficulty: str, mode: Optional[str] = None) -> Dict[str, Any]:
     minutes = bp["minutes"] + DIFF_EXTRA[difficulty]
     m = bp["method"]
@@ -378,7 +407,7 @@ def make_recipe(bp: Dict[str, Any], comp: Dict[str, Dict[str, Any]], steps: List
         badges.append("Air fryer OK")
     return {
         "lifestyle": badges,
-        "blueprint_id": bp["id"], "name": recipe_name(bp, comp), "method": bp["method"], "image": (IMG.get(bp["image"], IMG["bowl"]) if mode else pick_image(bp, comp)),
+        "blueprint_id": bp["id"], "name": recipe_name(bp, comp), "method": bp["method"], "image": (breakfast_image(bp) if mode else pick_image(bp, comp)),
         "kcal": sum(c.get("kcal", 0) for c in comp.values()),
         "steps": steps, "minutes": minutes, "difficulty": difficulty, "difficulty_label": DIFF_LABEL[difficulty],
         "extras": ["eau", "sel", "poivre"] + list(bp["extras"]), "quick": bool(bp["quick"]) or minutes <= 15, "moods": bp["moods"], "mode": mode,
@@ -646,7 +675,7 @@ def build_snack(ctx: Ctx, day_state: Dict[str, Any]) -> Optional[Dict[str, Any]]
             day_state["fruits"] += 1
     if not comps:
         return None
-    recipe = {"blueprint_id": "snack", "name": snack_name(comps), "method": "snack", "image": IMG["snack"], "steps": build_snack_steps(comp), "minutes": 5, "kcal": sum(c["kcal"] for c in comps),
+    recipe = {"blueprint_id": "snack", "name": snack_name(comps), "method": "snack", "image": snack_image(), "steps": build_snack_steps(comp), "minutes": 5, "kcal": sum(c["kcal"] for c in comps),
               "difficulty": "easy", "difficulty_label": "Facile", "extras": [], "quick": True, "moods": ["quick"], "mode": None, "lifestyle": ["Sans cuisson", "Sans four", "À emporter"]}
     return finalize_meal(recipe, comps, ctx)
 

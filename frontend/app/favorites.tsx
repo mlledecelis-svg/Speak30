@@ -8,7 +8,7 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 
 import { makeStyles, useTheme } from "@/src/theme";
 import { api } from "@/src/api";
-import { useProgram } from "@/src/program-store";
+import { useProgram, dishUrl } from "@/src/program-store";
 
 const useStyles = makeStyles((colors) => ({
   root: { flex: 1, backgroundColor: colors.surface },
@@ -65,7 +65,7 @@ export default function FavoritesScreen() {
           favs.map((f, i) => (
             <Animated.View key={`${f.week}-${f.day}-${f.meal}`} entering={FadeInDown.delay(i * 60).duration(300)}>
               <Pressable testID={`fav-row-${i}`} onPress={() => router.push({ pathname: "/recipe", params: { week: String(f.week), day: String(f.day), meal: f.meal } })} style={styles.row}>
-                <Image source={photoUrl(f.photo) ?? f.recipe.image} style={styles.thumb} contentFit="cover" transition={200} />
+                <Image source={photoUrl(f.photo) ?? dishUrl(f.recipe.image)} style={styles.thumb} contentFit="cover" transition={200} />
                 <View style={styles.body}>
                   <Text style={styles.meal}>{f.meal_label} · S{f.week + 1} {f.day_name}</Text>
                   <Text style={styles.name}>{f.recipe.name}</Text>

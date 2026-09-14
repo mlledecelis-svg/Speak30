@@ -9,7 +9,7 @@ import LucideIcon from "@react-native-vector-icons/lucide";
 import * as ImagePicker from "expo-image-picker";
 
 import { makeStyles, colors as themeColors } from "@/src/theme";
-import { useProgram, MEAL_LABELS } from "@/src/program-store";
+import { useProgram, MEAL_LABELS, dishUrl } from "@/src/program-store";
 
 const useStyles = makeStyles((colors) => ({
   root: { flex: 1, backgroundColor: colors.surface },
@@ -261,7 +261,7 @@ export default function RecipeScreen() {
     <View style={styles.root}>
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={styles.hero}>
-          <Image source={photoUrl(meal.photo) ?? r.image} style={styles.heroImg} contentFit="cover" transition={300} />
+          <Image source={photoUrl(meal.photo) ?? dishUrl(r.image)} style={styles.heroImg} contentFit="cover" transition={300} />
           <LinearGradient colors={["rgba(10,10,10,0.2)", "transparent", "rgba(10,10,10,0.95)"]} style={styles.scrim} />
           <Pressable testID="recipe-close" onPress={() => router.back()} style={[styles.close, { top: insets.top + 12 }]}>
             <LucideIcon name="x" size={20} color={themeColors.surfaceInverse} />

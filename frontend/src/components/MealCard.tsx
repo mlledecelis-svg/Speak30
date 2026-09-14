@@ -7,7 +7,7 @@ import { useRouter } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";
 
 import { makeStyles, colors as themeColors } from "@/src/theme";
-import { Meal, MEAL_LABELS, MEAL_ICONS, useProgram } from "@/src/program-store";
+import { Meal, MEAL_LABELS, MEAL_ICONS, useProgram, dishUrl } from "@/src/program-store";
 
 const useStyles = makeStyles((colors) => ({
   card: { marginHorizontal: 24, marginBottom: 12, borderRadius: 18, overflow: "hidden", backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border },
@@ -52,7 +52,7 @@ export function MealCard({ meal, mealKey, week, day, isNext, compact, featured, 
     <Animated.View entering={FadeInDown.delay(index * 80).duration(400)}>
     <Pressable testID={`meal-card-${mealKey}`} onPress={open} style={[styles.card, meal.done && styles.cardDone, isNext && styles.cardNext]}>
       <View>
-        <Image source={photoUrl(meal.photo) ?? r.image} style={[styles.img, compact && { height: 110 }]} contentFit="cover" transition={200} />
+        <Image source={photoUrl(meal.photo) ?? dishUrl(r.image)} style={[styles.img, compact && { height: 110 }]} contentFit="cover" transition={200} />
         <LinearGradient colors={["rgba(10,10,10,0.1)", "rgba(10,10,10,0.75)"]} style={styles.scrim} />
         <View style={styles.topRow}>
           <View style={styles.mealPill}>
